@@ -77,7 +77,8 @@ export function NewsCard({ article }: NewsCardProps) {
               <Image
                 src={article.imageUrl}
                 alt={article.title}
-                fill
+                width={96}
+                height={96}
                 className="object-cover"
               />
             </div>

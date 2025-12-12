@@ -13,16 +13,50 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import {
+  LayoutDashboard,
+  TrendingUp,
+  Newspaper,
+  Brain,
+  Settings,
+  ChevronDown,
+} from "lucide-react";
 
 export function Navbar() {
   const pathname = usePathname();
   const { user, isAuthenticated, logout } = useAuth();
 
   const navigation = [
-    { name: "Dashboard", href: "/dashboard" },
-    { name: "Charts", href: "/charts" },
-    { name: "News", href: "/news" },
-    { name: "Settings", href: "/settings" },
+    {
+      name: "Dashboard",
+      href: "/dashboard",
+      icon: LayoutDashboard,
+      description: "Overview and quick actions",
+    },
+    {
+      name: "Charts",
+      href: "/charts",
+      icon: TrendingUp,
+      description: "Real-time price charts (TradingView style)",
+    },
+    {
+      name: "News",
+      href: "/news",
+      icon: Newspaper,
+      description: "Multi-source news crawler with sentiment",
+    },
+    {
+      name: "AI Analysis",
+      href: "/sentiment",
+      icon: Brain,
+      description: "AI-powered sentiment & causal analysis",
+    },
+    {
+      name: "Settings",
+      href: "/settings",
+      icon: Settings,
+      description: "Pair selection and account settings",
+    },
   ];
 
   const getInitials = (name: string) => {
@@ -34,29 +68,76 @@ export function Navbar() {
   };
 
   return (
-    <nav className="border-b bg-background">
+    <nav className="border-b sticky top-0 z-50 backdrop-blur-sm bg-background/95">
       <div className="container mx-auto px-4">
         <div className="flex h-16 items-center justify-between">
           <div className="flex items-center space-x-8">
-            <Link href="/" className="text-xl font-bold">
-              Crypto Platform
+            <Link
+              href="/"
+              className="text-xl font-bold flex items-center gap-2"
+            >
+              <TrendingUp className="h-6 w-6" />
+              <span className="hidden sm:inline">Crypto Platform</span>
             </Link>
             {isAuthenticated && (
-              <div className="hidden md:flex space-x-4">
-                {navigation.map((item) => (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`text-sm font-medium transition-colors hover:text-primary ${
-                      pathname === item.href
-                        ? "text-primary"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {item.name}
-                  </Link>
-                ))}
-              </div>
+              <>
+                {/* Desktop Navigation */}
+                <div className="hidden lg:flex space-x-1">
+                  {navigation.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        className={`flex items-center gap-2 px-3 py-2 rounded-md text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground ${
+                          pathname === item.href
+                            ? "bg-accent text-accent-foreground"
+                            : "text-muted-foreground"
+                        }`}
+                        title={item.description}
+                      >
+                        <Icon className="h-4 w-4" />
+                        {item.name}
+                      </Link>
+                    );
+                  })}
+                </div>
+
+                {/* Mobile Navigation Dropdown */}
+                <div className="lg:hidden">
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="gap-1">
+                        Menu
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start" className="w-56">
+                      {navigation.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <DropdownMenuItem key={item.href} asChild>
+                            <Link
+                              href={item.href}
+                              className={`flex items-center gap-2 ${
+                                pathname === item.href ? "bg-accent" : ""
+                              }`}
+                            >
+                              <Icon className="h-4 w-4" />
+                              <div className="flex flex-col">
+                                <span className="font-medium">{item.name}</span>
+                                <span className="text-xs text-muted-foreground">
+                                  {item.description}
+                                </span>
+                              </div>
+                            </Link>
+                          </DropdownMenuItem>
+                        );
+                      })}
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </div>
+              </>
             )}
           </div>
 

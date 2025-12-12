@@ -1,0 +1,1 @@
+export { SentimentCard } from "./SentimentCard";

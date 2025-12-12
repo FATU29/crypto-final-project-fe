@@ -12,37 +12,53 @@ import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 // Simple progress fallback (avoid dependency on missing shadcn progress)
 
 interface SentimentCardProps {
-  sentiment: Sentiment;
+  sentiment?: Sentiment;
   title?: string;
+  // Alternative simple props for direct usage
+  score?: number;
+  description?: string;
 }
 
 export function SentimentCard({
   sentiment,
   title = "Market Sentiment",
+  score: directScore,
+  description,
 }: SentimentCardProps) {
+  // Use either the sentiment object or direct props
+  const sentimentScore = sentiment?.score ?? directScore ?? 0;
+  const sentimentLabel =
+    sentiment?.label ??
+    (sentimentScore > 0.2
+      ? "positive"
+      : sentimentScore < -0.2
+      ? "negative"
+      : "neutral");
+  const sentimentConfidence = sentiment?.confidence ?? 1;
+
   const getIcon = () => {
-    if (sentiment.label === "positive") {
+    if (sentimentLabel === "positive") {
       return <TrendingUp className="h-5 w-5 text-green-500" />;
-    } else if (sentiment.label === "negative") {
+    } else if (sentimentLabel === "negative") {
       return <TrendingDown className="h-5 w-5 text-red-500" />;
     }
     return <Minus className="h-5 w-5 text-gray-500" />;
   };
 
   const getColor = () => {
-    if (sentiment.label === "positive") return "text-green-500";
-    if (sentiment.label === "negative") return "text-red-500";
+    if (sentimentLabel === "positive") return "text-green-500";
+    if (sentimentLabel === "negative") return "text-red-500";
     return "text-gray-500";
   };
 
   const getProgressColor = () => {
-    if (sentiment.label === "positive") return "bg-green-500";
-    if (sentiment.label === "negative") return "bg-red-500";
+    if (sentimentLabel === "positive") return "bg-green-500";
+    if (sentimentLabel === "negative") return "bg-red-500";
     return "bg-gray-500";
   };
 
   // Convert score from -1 to 1 range to 0 to 100 for progress bar
-  const progressValue = ((sentiment.score + 1) / 2) * 100;
+  const progressValue = ((sentimentScore + 1) / 2) * 100;
 
   return (
     <Card>
@@ -51,15 +67,17 @@ export function SentimentCard({
           <CardTitle className="text-lg">{title}</CardTitle>
           {getIcon()}
         </div>
-        <CardDescription>AI-powered sentiment analysis</CardDescription>
+        <CardDescription>
+          {description || "AI-powered sentiment analysis"}
+        </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div>
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium">Sentiment Score</span>
             <span className={`text-2xl font-bold ${getColor()}`}>
-              {sentiment.score > 0 ? "+" : ""}
-              {(sentiment.score * 100).toFixed(0)}%
+              {sentimentScore > 0 ? "+" : ""}
+              {(sentimentScore * 100).toFixed(0)}%
             </span>
           </div>
           <div className="w-full h-2 bg-slate-200 rounded-full overflow-hidden">
@@ -73,14 +91,14 @@ export function SentimentCard({
         <div className="flex items-center justify-between pt-2 border-t">
           <span className="text-sm text-muted-foreground">Confidence</span>
           <span className="text-sm font-semibold">
-            {(sentiment.confidence * 100).toFixed(0)}%
+            {(sentimentConfidence * 100).toFixed(0)}%
           </span>
         </div>
 
         <div className="flex items-center justify-between">
           <span className="text-sm text-muted-foreground">Label</span>
           <span className={`text-sm font-semibold capitalize ${getColor()}`}>
-            {sentiment.label}
+            {sentimentLabel}
           </span>
         </div>
       </CardContent>

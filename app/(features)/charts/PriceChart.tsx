@@ -1,35 +1,25 @@
 "use client";
 
-import React, { useEffect, useRef, useState, useCallback } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
 } from "lightweight-charts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
-
-export type Candle = {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
-};
+import { AlertCircle, Wifi, WifiOff } from "lucide-react";
+import { useBinanceWebSocket } from "@/hooks";
 
 export type PriceChartProps = {
   symbol: string;
   interval: string;
   height?: number;
-  onChartReady?: () => void;
 };
 
 export default function PriceChart({
   symbol,
   interval,
   height = 500,
-  onChartReady,
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -38,64 +28,127 @@ export default function PriceChart({
   const candlestickSeriesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const volumeSeriesRef = useRef<any>(null);
-  const wsRef = useRef<WebSocket | null>(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
 
-  // Fetch historical data from Binance
-  const fetchHistoricalData = useCallback(async () => {
-    try {
-      setIsLoading(true);
+  // Use WebSocket hook
+  const { isConnected: wsConnected, lastMessage } = useBinanceWebSocket({
+    symbol,
+    interval,
+    enabled:
+      !isLoading && !!candlestickSeriesRef.current && !!volumeSeriesRef.current,
+    onConnect: () => {
+      console.log("✅ [Chart] WebSocket connected");
       setError(null);
+    },
+    onDisconnect: () => {
+      console.log("🔌 [Chart] WebSocket disconnected");
+    },
+    onError: () => {
+      setError("WebSocket connection error");
+    },
+  });
 
-      const limit = 1000;
-      const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
-
-      const response = await fetch(url);
-      if (!response.ok) {
-        throw new Error(`Failed to fetch data: ${response.statusText}`);
-      }
-
-      const data = await response.json();
-
-      const candles = data.map((d: (number | string)[]) => ({
-        time: Math.floor(Number(d[0]) / 1000),
-        open: Number(d[1]),
-        high: Number(d[2]),
-        low: Number(d[3]),
-        close: Number(d[4]),
-      }));
-
-      const volumes = data.map((d: (number | string)[]) => ({
-        time: Math.floor(Number(d[0]) / 1000),
-        value: Number(d[5]),
-        color:
-          Number(d[4]) >= Number(d[1])
-            ? "rgba(34, 197, 94, 0.5)"
-            : "rgba(239, 68, 68, 0.5)",
-      }));
-
-      if (candlestickSeriesRef.current && volumeSeriesRef.current) {
-        candlestickSeriesRef.current.setData(candles);
-        volumeSeriesRef.current.setData(volumes);
-
-        if (candles.length > 0) {
-          setLastPrice(candles[candles.length - 1].close);
-        }
-      }
-
-      setIsLoading(false);
-      onChartReady?.();
-    } catch (err) {
-      console.error("Error fetching historical data:", err);
-      setError(
-        err instanceof Error ? err.message : "Failed to load chart data"
-      );
-      setIsLoading(false);
+  // Update chart when WebSocket receives new data
+  useEffect(() => {
+    if (
+      !lastMessage ||
+      !candlestickSeriesRef.current ||
+      !volumeSeriesRef.current
+    ) {
+      return;
     }
-  }, [symbol, interval, onChartReady]);
+
+    const kline = lastMessage.k;
+    if (!kline) return;
+
+    const candle = {
+      time: Math.floor(kline.t / 1000),
+      open: parseFloat(kline.o),
+      high: parseFloat(kline.h),
+      low: parseFloat(kline.l),
+      close: parseFloat(kline.c),
+    };
+
+    const volume = {
+      time: Math.floor(kline.t / 1000),
+      value: parseFloat(kline.v),
+      color:
+        parseFloat(kline.c) >= parseFloat(kline.o)
+          ? "rgba(34, 197, 94, 0.5)"
+          : "rgba(239, 68, 68, 0.5)",
+    };
+
+    candlestickSeriesRef.current.update(candle);
+    volumeSeriesRef.current.update(volume);
+    setLastPrice(candle.close);
+  }, [lastMessage]);
+
+  // Fetch historical data from Binance REST API
+  useEffect(() => {
+    if (!symbol || !interval) {
+      setError("Missing symbol or interval");
+      return;
+    }
+
+    const fetchHistoricalData = async () => {
+      try {
+        setIsLoading(true);
+        setError(null);
+
+        const limit = 1000;
+        const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+
+        console.log("📊 Fetching historical data:", url);
+
+        const response = await fetch(url);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+
+        const data = await response.json();
+
+        const candles = data.map((d: (number | string)[]) => ({
+          time: Math.floor(Number(d[0]) / 1000),
+          open: Number(d[1]),
+          high: Number(d[2]),
+          low: Number(d[3]),
+          close: Number(d[4]),
+        }));
+
+        const volumes = data.map((d: (number | string)[]) => ({
+          time: Math.floor(Number(d[0]) / 1000),
+          value: Number(d[5]),
+          color:
+            Number(d[4]) >= Number(d[1])
+              ? "rgba(34, 197, 94, 0.5)"
+              : "rgba(239, 68, 68, 0.5)",
+        }));
+
+        if (candlestickSeriesRef.current && volumeSeriesRef.current) {
+          candlestickSeriesRef.current.setData(candles);
+          volumeSeriesRef.current.setData(volumes);
+
+          if (candles.length > 0) {
+            setLastPrice(candles[candles.length - 1].close);
+          }
+        }
+
+        setIsLoading(false);
+        console.log("✅ Historical data loaded:", candles.length, "candles");
+      } catch (err) {
+        console.error("❌ Error fetching historical data:", err);
+        setError(
+          err instanceof Error ? err.message : "Failed to load chart data"
+        );
+        setIsLoading(false);
+      }
+    };
+
+    fetchHistoricalData();
+  }, [symbol, interval]);
 
   // Initialize chart
   useEffect(() => {
@@ -165,88 +218,13 @@ export default function PriceChart({
 
     window.addEventListener("resize", handleResize);
 
-    // Fetch initial data
-    fetchHistoricalData();
-
     return () => {
       window.removeEventListener("resize", handleResize);
       if (chartRef.current) {
         chartRef.current.remove();
       }
     };
-  }, [height, fetchHistoricalData]);
-
-  // WebSocket connection for real-time updates
-  useEffect(() => {
-    if (isLoading || !candlestickSeriesRef.current || !volumeSeriesRef.current)
-      return;
-
-    const streamName = `${symbol.toLowerCase()}@kline_${interval}`;
-    const wsUrl = `wss://stream.binance.com:9443/ws/${streamName}`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        console.log(`WebSocket connected: ${streamName}`);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const message = JSON.parse(event.data);
-          const kline = message.k;
-
-          if (!kline) return;
-
-          const candle = {
-            time: Math.floor(kline.t / 1000),
-            open: parseFloat(kline.o),
-            high: parseFloat(kline.h),
-            low: parseFloat(kline.l),
-            close: parseFloat(kline.c),
-          };
-
-          const volume = {
-            time: Math.floor(kline.t / 1000),
-            value: parseFloat(kline.v),
-            color:
-              parseFloat(kline.c) >= parseFloat(kline.o)
-                ? "rgba(34, 197, 94, 0.5)"
-                : "rgba(239, 68, 68, 0.5)",
-          };
-
-          if (candlestickSeriesRef.current && volumeSeriesRef.current) {
-            candlestickSeriesRef.current.update(candle);
-            volumeSeriesRef.current.update(volume);
-            setLastPrice(candle.close);
-          }
-        } catch (err) {
-          console.error("Error processing WebSocket message:", err);
-        }
-      };
-
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-        setError("WebSocket connection error");
-      };
-
-      ws.onclose = () => {
-        console.log("WebSocket disconnected");
-      };
-
-      wsRef.current = ws;
-
-      return () => {
-        if (wsRef.current) {
-          wsRef.current.close();
-          wsRef.current = null;
-        }
-      };
-    } catch (err) {
-      console.error("Error creating WebSocket:", err);
-      setError("Failed to connect to real-time data");
-    }
-  }, [symbol, interval, isLoading]);
+  }, [height]);
 
   return (
     <div className="w-full space-y-2">
@@ -257,11 +235,24 @@ export default function PriceChart({
         </Alert>
       )}
 
-      {lastPrice && (
-        <div className="flex items-center justify-between px-2">
+      <div className="flex items-center justify-between px-2">
+        <div className="flex items-center gap-3">
           <div className="text-sm text-muted-foreground">
             {symbol} • {interval}
           </div>
+          {wsConnected ? (
+            <div className="flex items-center gap-1 text-xs text-green-500">
+              <Wifi className="h-3 w-3" />
+              <span>Live</span>
+            </div>
+          ) : (
+            <div className="flex items-center gap-1 text-xs text-gray-400">
+              <WifiOff className="h-3 w-3" />
+              <span>Connecting...</span>
+            </div>
+          )}
+        </div>
+        {lastPrice && (
           <div className="text-lg font-bold">
             $
             {lastPrice.toLocaleString(undefined, {
@@ -269,8 +260,8 @@ export default function PriceChart({
               maximumFractionDigits: 2,
             })}
           </div>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="relative">
         {isLoading && (
