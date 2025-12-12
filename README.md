@@ -1,36 +1,223 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Crypto Trading Platform - Frontend
 
-## Getting Started
+A modern, production-ready Next.js 14+ application with complete authentication, 30+ UI components, and best practice architecture.
 
-First, run the development server:
+## 🎯 Quick Start
 
 ```bash
+# Install dependencies
+npm install
+
+# Start development server
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+
+# Build for production
+npm run build
+
+# Start production server
+npm start
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Visit: http://localhost:3000
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## ✨ Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+✅ **Complete Authentication System** - Login, register, logout, protected routes  
+✅ **30+ shadcn/ui Components** - Beautiful, accessible, ready-to-use  
+✅ **Type-Safe API Layer** - Axios client with interceptors  
+✅ **Route Protection** - Middleware-based authentication  
+✅ **Custom Hooks** - Reusable React hooks  
+✅ **Responsive Design** - Mobile-first approach  
+✅ **Dark Mode Support** - Built-in theme switching  
+✅ **Professional Layout** - Navbar, Footer, and more
 
-## Learn More
+## 📁 Project Structure
 
-To learn more about Next.js, take a look at the following resources:
+```
+fe/
+├── app/                    # Next.js App Router
+│   ├── (auth)/            # Auth pages (login, register)
+│   ├── (dashboard)/       # Protected dashboard
+│   ├── (features)/        # Feature-specific routes
+│   └── api/               # API routes
+├── components/            # React components
+│   ├── ui/               # shadcn/ui components (30+)
+│   ├── layout/           # Layout components
+│   └── common/           # Shared components
+├── lib/                   # Business logic
+│   ├── api/              # API client & services
+│   └── auth/             # Authentication
+├── hooks/                 # Custom React hooks
+├── types/                 # TypeScript types
+├── config/                # Configuration
+└── middleware.ts          # Route protection
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 📚 Documentation
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+- **[QUICKSTART.md](./QUICKSTART.md)** - Getting started guide
+- **[ARCHITECTURE.md](./ARCHITECTURE.md)** - Complete architecture details
+- **[ARCHITECTURE_DIAGRAM.md](./ARCHITECTURE_DIAGRAM.md)** - Visual diagrams
+- **[CHECKLIST.md](./CHECKLIST.md)** - Implementation checklist
+- **[SUMMARY.md](./SUMMARY.md)** - Project summary
 
-## Deploy on Vercel
+## 🚀 Usage Examples
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Using Authentication
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+```tsx
+"use client";
+
+import { useAuth } from "@/lib/auth";
+
+export function MyComponent() {
+  const { user, isAuthenticated, logout } = useAuth();
+
+  return (
+    <div>
+      {isAuthenticated ? (
+        <>
+          <p>Welcome, {user?.name}</p>
+          <button onClick={logout}>Logout</button>
+        </>
+      ) : (
+        <a href="/login">Login</a>
+      )}
+    </div>
+  );
+}
+```
+
+### Using Components
+
+```tsx
+import { Button, Card } from "@/components/ui/button";
+
+export function Example() {
+  return (
+    <Card>
+      <Button variant="default">Click me</Button>
+    </Card>
+  );
+}
+```
+
+### Making API Calls
+
+```tsx
+import { authService } from "@/lib/api";
+
+const user = await authService.getCurrentUser();
+```
+
+## 🎨 Available Components
+
+All shadcn/ui components installed and ready:
+
+- Button, Card, Input, Label, Form
+- Select, Checkbox, Switch, Textarea
+- Alert, Dialog, Dropdown Menu, Popover
+- Badge, Avatar, Skeleton, Table
+- Tabs, Accordion, Sheet, Scroll Area
+- Separator, Tooltip, Sonner (Toast)
+
+## 🔐 Authentication Flow
+
+1. User visits `/login`
+2. Submits credentials
+3. API validates and returns tokens
+4. Tokens stored in localStorage
+5. User redirected to `/dashboard`
+6. Middleware protects routes
+7. API client auto-injects tokens
+
+## 🛠️ Tech Stack
+
+- **Framework:** Next.js 14+ (App Router)
+- **Language:** TypeScript
+- **Styling:** Tailwind CSS v4
+- **UI Components:** shadcn/ui
+- **State Management:** Zustand + Context API
+- **API Client:** Axios
+- **Form Handling:** React Hook Form
+- **Validation:** Zod
+- **Icons:** Lucide React
+
+## 📝 Environment Variables
+
+Create a `.env.local` file:
+
+```env
+NEXT_PUBLIC_APP_URL=http://localhost:3000
+NEXT_PUBLIC_API_URL=http://localhost:3000/api
+```
+
+## 🔧 Configuration
+
+Edit `config/app.ts` to customize:
+
+- App metadata
+- API endpoints
+- Auth settings
+- Route definitions
+
+## 📦 Scripts
+
+```bash
+npm run dev      # Start development server
+npm run build    # Build for production
+npm run start    # Start production server
+npm run lint     # Run ESLint
+```
+
+## 🏗️ Architecture Highlights
+
+### Route Groups
+
+- `(auth)` - Authentication pages without main layout
+- `(dashboard)` - Protected pages with full layout
+- `(features)` - Feature-specific routes
+
+### API Layer
+
+- Centralized Axios client
+- Request/response interceptors
+- Automatic token injection
+- Token refresh mechanism
+
+### Authentication
+
+- Context-based state management
+- Token storage in localStorage
+- Protected routes via middleware
+- Auth hooks for components
+
+## 🎯 Next Steps
+
+1. Connect to your backend API
+2. Implement real authentication
+3. Add database integration
+4. Customize UI components
+5. Build your features
+
+## 📖 Learn More
+
+- [Next.js Documentation](https://nextjs.org/docs)
+- [shadcn/ui](https://ui.shadcn.com)
+- [Tailwind CSS](https://tailwindcss.com)
+- [TypeScript](https://www.typescriptlang.org)
+
+## 🤝 Contributing
+
+1. Follow the established folder structure
+2. Use TypeScript types
+3. Write meaningful commit messages
+4. Test your changes
+
+## 📄 License
+
+MIT
+
+---
+
+**Built with ❤️ using Next.js 14+ and shadcn/ui**
