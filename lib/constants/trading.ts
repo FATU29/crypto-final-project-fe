@@ -17,30 +17,6 @@ export const MOCK_TRADING_PAIRS: TradingPair[] = [
     price: 2280.75,
     change24h: -1.23,
   },
-  {
-    symbol: "BNBUSDT",
-    baseAsset: "BNB",
-    quoteAsset: "USDT",
-    name: "BNB",
-    price: 312.4,
-    change24h: 0.89,
-  },
-  {
-    symbol: "SOLUSDT",
-    baseAsset: "SOL",
-    quoteAsset: "USDT",
-    name: "Solana",
-    price: 98.65,
-    change24h: 5.67,
-  },
-  {
-    symbol: "ADAUSDT",
-    baseAsset: "ADA",
-    quoteAsset: "USDT",
-    name: "Cardano",
-    price: 0.5432,
-    change24h: -0.45,
-  },
 ];
 
 export const CHART_TIMEFRAMES = [

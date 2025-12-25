@@ -81,9 +81,23 @@ export default function PriceChart({
           : "rgba(239, 68, 68, 0.5)",
     };
 
-    candlestickSeriesRef.current.update(candle);
-    volumeSeriesRef.current.update(volume);
-    setLastPrice(candle.close);
+    try {
+      // Try to update the chart with new data
+      // If the data is older than existing data, this will throw an error
+      // which we catch and ignore
+      candlestickSeriesRef.current.update(candle);
+      volumeSeriesRef.current.update(volume);
+      setLastPrice(candle.close);
+    } catch (error) {
+      // Silently ignore "Cannot update oldest data" errors
+      // This happens when WebSocket sends data that's already in the chart
+      if (
+        error instanceof Error &&
+        !error.message.includes("Cannot update oldest data")
+      ) {
+        console.warn("Chart update error:", error.message);
+      }
+    }
   }, [lastMessage]);
 
   // Fetch historical data from Binance REST API

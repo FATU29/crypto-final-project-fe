@@ -1,8 +1,16 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-import { config } from "./config";
+// import { config } from "./config";
 
-export function middleware(request: NextRequest) {
+// AUTHENTICATION DISABLED FOR DEVELOPMENT
+// Bypass login - allow access to all routes without authentication
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+export function middleware(_request: NextRequest) {
+  // Simply allow all requests to pass through
+  return NextResponse.next();
+
+  /* 
+  // Original authentication code (disabled)
   const { pathname } = request.nextUrl;
   const token = request.cookies.get(config.auth.tokenKey)?.value;
 
@@ -26,6 +34,7 @@ export function middleware(request: NextRequest) {
   }
 
   return NextResponse.next();
+  */
 }
 
 export const config_middleware = {
