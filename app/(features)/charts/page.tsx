@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { ChartContainer } from "@/components/pages/charts/ChartContainer";
 import { MOCK_TRADING_PAIRS } from "@/lib/constants/trading";
-import { PairSelector } from "../settings/PairSelector";
+import { PairSelector } from "@/components/charts/PairSelector";
 import { Card, CardContent } from "@/components/ui/card";
 import { TrendingUp, Activity, BarChart3 } from "lucide-react";
 

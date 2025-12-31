@@ -1,9 +1,5 @@
-export interface ApiResponse<T = unknown> {
-  success: boolean;
-  data?: T;
-  message?: string;
-  error?: string;
-}
+// ApiResponse is now defined in auth.ts to match backend structure
+// Use ApiResponse from auth.ts for backend API responses
 
 export interface PaginationParams {
   page: number;

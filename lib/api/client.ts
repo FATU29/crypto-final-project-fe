@@ -46,17 +46,66 @@ class ApiClient {
           try {
             const refreshToken = this.getRefreshToken();
             if (refreshToken) {
-              // Implement token refresh logic here
-              // const { data } = await this.post('/auth/refresh', { refreshToken });
-              // this.setToken(data.accessToken);
-              // return this.client(originalRequest);
+              // Call refresh token endpoint directly (avoids circular dependency)
+              // Following integration guide pattern
+              const { data } = await axios.post<{
+                success: boolean;
+                message?: string;
+                data: {
+                  accessToken: string;
+                  refreshToken: string;
+                  tokenType: string;
+                  expiresIn: number;
+                };
+              }>(
+                `${config.api.baseUrl}/api/v1/auth/refresh-token`,
+                { refreshToken },
+                {
+                  headers: {
+                    "Content-Type": "application/json",
+                  },
+                }
+              );
+
+              if (data.success && data.data) {
+                // Update tokens
+                this.setToken(data.data.accessToken);
+                if (typeof window !== "undefined") {
+                  localStorage.setItem(
+                    config.auth.refreshTokenKey,
+                    data.data.refreshToken
+                  );
+                }
+
+                // Retry original request with new token
+                if (originalRequest.headers) {
+                  originalRequest.headers.Authorization = `Bearer ${data.data.accessToken}`;
+                }
+                return this.client(originalRequest);
+              }
             }
           } catch (refreshError) {
+            // Refresh failed, clear auth and redirect to login
             this.clearAuth();
             if (typeof window !== "undefined") {
               window.location.href = config.routes.loginRedirect;
             }
             return Promise.reject(refreshError);
+          }
+        }
+
+        // Handle other error status codes according to integration guide
+        // 400: Bad Request, 403: Forbidden, 404: Not Found, 503: Service Unavailable
+        if (error.response?.data) {
+          const errorData = error.response.data as {
+            message?: string;
+            error?: string;
+          };
+          // Extract error message from ApiResponse format
+          if (errorData?.message) {
+            error.message = errorData.message;
+          } else if (errorData?.error) {
+            error.message = errorData.error;
           }
         }
 

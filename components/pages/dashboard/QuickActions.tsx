@@ -29,11 +29,6 @@ const actions: QuickAction[] = [
     description: "Stay updated with crypto news",
     href: "/news",
   },
-  {
-    title: "Update Settings",
-    description: "Manage your preferences",
-    href: "/settings",
-  },
 ];
 
 export function QuickActions() {

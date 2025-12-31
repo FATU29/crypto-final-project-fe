@@ -1,13 +1,9 @@
 import React from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  LayoutDashboard,
   TrendingUp,
   Newspaper,
-  Brain,
-  Settings,
   Home,
-  FileText,
 } from "lucide-react";
 
 export function NavigationSitemap() {
@@ -20,13 +16,6 @@ export function NavigationSitemap() {
       color: "text-gray-500",
     },
     {
-      name: "Dashboard",
-      path: "/dashboard",
-      icon: LayoutDashboard,
-      description: "Personalized overview & quick actions",
-      color: "text-blue-500",
-    },
-    {
       name: "Charts",
       path: "/charts",
       icon: TrendingUp,
@@ -37,29 +26,8 @@ export function NavigationSitemap() {
       name: "News",
       path: "/news",
       icon: Newspaper,
-      description: "Multi-source news with sentiment",
+      description: "Multi-source news with AI causal analysis",
       color: "text-orange-500",
-    },
-    {
-      name: "AI Analysis",
-      path: "/sentiment",
-      icon: Brain,
-      description: "Sentiment & causal analysis",
-      color: "text-purple-500",
-    },
-    {
-      name: "Settings",
-      path: "/settings",
-      icon: Settings,
-      description: "Pair selection & account",
-      color: "text-gray-500",
-    },
-    {
-      name: "Features",
-      path: "/features",
-      icon: FileText,
-      description: "Platform features showcase",
-      color: "text-indigo-500",
     },
   ];
 

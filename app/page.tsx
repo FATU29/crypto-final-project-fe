@@ -10,7 +10,6 @@ import {
 import {
   TrendingUp,
   Newspaper,
-  Brain,
   BarChart3,
   ArrowRight,
   Radio,
@@ -35,13 +34,13 @@ export default async function Page() {
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button asChild size="lg">
-              <Link href="/dashboard">
-                Get Started
+              <Link href="/charts">
+                View Charts
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/features">Explore Features</Link>
+              <Link href="/news">Browse News</Link>
             </Button>
           </div>
         </div>
@@ -54,7 +53,7 @@ export default async function Page() {
             Core Features
           </h2>
 
-          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 mb-12">
+          <div className="grid gap-6 md:grid-cols-2 mb-12">
             {/* Charts */}
             <Card className="hover:shadow-lg transition-shadow">
               <CardHeader>
@@ -111,31 +110,6 @@ export default async function Page() {
                 </ul>
                 <Button asChild variant="outline" className="w-full">
                   <Link href="/news">Browse News →</Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            {/* AI Analysis */}
-            <Card className="hover:shadow-lg transition-shadow">
-              <CardHeader>
-                <div className="flex items-center gap-3 mb-2">
-                  <div className="p-2 bg-purple-500/10 rounded-lg">
-                    <Brain className="h-6 w-6 text-purple-500" />
-                  </div>
-                  <CardTitle>AI Sentiment Analysis</CardTitle>
-                </div>
-                <CardDescription>
-                  Advanced AI models for news sentiment and causal analysis
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li>• AI-powered sentiment scoring</li>
-                  <li>• News-price correlation analysis</li>
-                  <li>• Causal reasoning: WHY prices move</li>
-                </ul>
-                <Button asChild variant="outline" className="w-full">
-                  <Link href="/sentiment">View Analysis →</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -197,10 +171,10 @@ export default async function Page() {
           </p>
           <div className="flex gap-4 justify-center pt-4">
             <Button asChild size="lg">
-              <Link href="/settings">Configure Pairs</Link>
+              <Link href="/charts">View Charts</Link>
             </Button>
             <Button asChild size="lg" variant="outline">
-              <Link href="/dashboard">Go to Dashboard</Link>
+              <Link href="/news">Browse News</Link>
             </Button>
           </div>
         </div>

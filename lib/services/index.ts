@@ -9,3 +9,4 @@ export {
   type BinanceTicker,
   type WebSocketCallback,
 } from "./binance-websocket";
+export * from "./news-api";

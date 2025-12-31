@@ -14,11 +14,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
-  LayoutDashboard,
   TrendingUp,
   Newspaper,
-  Brain,
-  Settings,
   ChevronDown,
 } from "lucide-react";
 
@@ -27,12 +24,6 @@ export function Navbar() {
   const { user, isAuthenticated, logout } = useAuth();
 
   const navigation = [
-    {
-      name: "Dashboard",
-      href: "/dashboard",
-      icon: LayoutDashboard,
-      description: "Overview and quick actions",
-    },
     {
       name: "Charts",
       href: "/charts",
@@ -43,28 +34,16 @@ export function Navbar() {
       name: "News",
       href: "/news",
       icon: Newspaper,
-      description: "Multi-source news crawler with sentiment",
-    },
-    {
-      name: "AI Analysis",
-      href: "/sentiment",
-      icon: Brain,
-      description: "AI-powered sentiment & causal analysis",
-    },
-    {
-      name: "Settings",
-      href: "/settings",
-      icon: Settings,
-      description: "Pair selection and account settings",
+      description: "Multi-source news crawler with AI analysis",
     },
   ];
 
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase();
+  const getFullName = (user: { firstName: string; lastName: string }) => {
+    return `${user.firstName} ${user.lastName}`.trim();
+  };
+
+  const getInitials = (user: { firstName: string; lastName: string }) => {
+    return `${user.firstName[0] || ""}${user.lastName[0] || ""}`.toUpperCase();
   };
 
   return (
@@ -150,8 +129,8 @@ export function Navbar() {
                     className="relative h-9 w-9 rounded-full"
                   >
                     <Avatar className="h-9 w-9">
-                      <AvatarImage src={user.avatar} alt={user.name} />
-                      <AvatarFallback>{getInitials(user.name)}</AvatarFallback>
+                      <AvatarImage src={user.avatar} alt={getFullName(user)} />
+                      <AvatarFallback>{getInitials(user)}</AvatarFallback>
                     </Avatar>
                   </Button>
                 </DropdownMenuTrigger>
@@ -159,20 +138,13 @@ export function Navbar() {
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
                       <p className="text-sm font-medium leading-none">
-                        {user.name}
+                        {getFullName(user)}
                       </p>
                       <p className="text-xs leading-none text-muted-foreground">
                         {user.email}
                       </p>
                     </div>
                   </DropdownMenuLabel>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/settings">Settings</Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/profile">Profile</Link>
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => logout()}>
                     Log out

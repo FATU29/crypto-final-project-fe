@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { NewsArticle } from "@/types/trading";
 import { TrendingUp, TrendingDown, Minus } from "lucide-react";
 import Image from "next/image";
+import sanitizeHtml from "sanitize-html";
 
 interface NewsCardProps {
   article: NewsArticle;
@@ -67,10 +68,38 @@ export function NewsCard({ article }: NewsCardProps) {
                 {article.source}
               </span>
             </div>
-            <CardTitle className="line-clamp-2">{article.title}</CardTitle>
-            <CardDescription className="mt-2">
-              {article.summary}
-            </CardDescription>
+            <CardTitle
+              className="line-clamp-2"
+              dangerouslySetInnerHTML={{
+                __html: sanitizeHtml(article.title, {
+                  allowedTags: ["b", "strong", "em", "i", "u", "span"],
+                  allowedAttributes: {},
+                }),
+              }}
+            />
+            {article.summary && (
+              <CardDescription
+                className="mt-2 prose prose-sm max-w-none line-clamp-3"
+                dangerouslySetInnerHTML={{
+                  __html: sanitizeHtml(article.summary, {
+                    allowedTags: [
+                      "p",
+                      "br",
+                      "strong",
+                      "em",
+                      "b",
+                      "i",
+                      "u",
+                      "a",
+                      "span",
+                    ],
+                    allowedAttributes: {
+                      a: ["href", "target", "rel"],
+                    },
+                  }),
+                }}
+              />
+            )}
           </div>
           {article.imageUrl && (
             <div className="relative w-24 h-24 shrink-0 rounded-md overflow-hidden">
