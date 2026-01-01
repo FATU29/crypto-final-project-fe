@@ -55,7 +55,7 @@ export default function NewsDetailPage() {
     fetchNews();
   }, [params.id, fetchDetail]);
 
-  if (loading || (news && !news.content && fetchingDetail)) {
+  if (loading) {
     return (
       <div className="container mx-auto py-8 max-w-4xl">
         <Skeleton className="h-8 w-20 mb-6" />
@@ -209,8 +209,8 @@ export default function NewsDetailPage() {
           <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
             <p className="text-sm text-gray-600">
               {fetchingDetail
-                ? "Đang tải nội dung đầy đủ để phân tích nhân quả..."
-                : "Vui lòng tải nội dung đầy đủ để sử dụng phân tích nhân quả"}
+                ? "Loading full content for causal analysis..."
+                : "Please load full content to use causal analysis"}
             </p>
           </div>
         )}
@@ -275,7 +275,7 @@ export default function NewsDetailPage() {
           ) : (
             <div className="rounded-lg border-2 border-dashed border-gray-300 p-8 text-center">
               <p className="text-gray-500">
-                Nội dung bài viết đang được tải...
+                Article content is being loaded...
               </p>
             </div>
           )}

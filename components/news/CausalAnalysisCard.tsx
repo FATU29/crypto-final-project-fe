@@ -132,9 +132,9 @@ export function CausalAnalysisCard({
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>Phân tích nhân quả & Dự đoán xu hướng</CardTitle>
+            <CardTitle>Causal Analysis & Trend Prediction</CardTitle>
             <CardDescription>
-              Phân tích mối quan hệ nhân quả giữa tin tức và biến động giá
+              Analyze the causal relationship between news and price movements
             </CardDescription>
           </div>
           {!result && (
@@ -146,12 +146,12 @@ export function CausalAnalysisCard({
               {loading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Đang phân tích...
+                  Analyzing...
                 </>
               ) : !hasSufficientContent ? (
-                "Đang tải nội dung..."
+                "Loading content..."
               ) : (
-                "Bắt đầu phân tích"
+                "Start Analysis"
               )}
             </Button>
           )}
@@ -163,8 +163,8 @@ export function CausalAnalysisCard({
           <Alert className="mb-4">
             <AlertCircle className="h-4 w-4" />
             <AlertDescription>
-              Vui lòng đợi tải nội dung đầy đủ của bài viết trước khi phân tích.
-              Nội dung cần có ít nhất 500 ký tự để phân tích chính xác.
+              Please wait for the full article content to load before analyzing.
+              Content needs at least 500 characters for accurate analysis.
             </AlertDescription>
           </Alert>
         )}
@@ -179,7 +179,7 @@ export function CausalAnalysisCard({
         {loading && !result && (
           <div className="flex items-center justify-center py-8">
             <Loader2 className="h-8 w-8 animate-spin text-primary" />
-            <span className="ml-2">Đang phân tích dữ liệu...</span>
+            <span className="ml-2">Analyzing data...</span>
           </div>
         )}
 
@@ -188,14 +188,14 @@ export function CausalAnalysisCard({
             {/* Price Context */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="p-4 bg-gray-50 rounded-lg">
-                <div className="text-sm text-gray-600">Giá trước tin tức</div>
+                <div className="text-sm text-gray-600">Price Before News</div>
                 <div className="text-2xl font-bold">
                   ${result.price_before_news.toFixed(2)}
                 </div>
               </div>
               {result.price_after_news && (
                 <div className="p-4 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Giá sau tin tức</div>
+                  <div className="text-sm text-gray-600">Price After News</div>
                   <div className="text-2xl font-bold">
                     ${result.price_after_news.toFixed(2)}
                   </div>
@@ -203,7 +203,7 @@ export function CausalAnalysisCard({
               )}
               {result.price_change_percent !== null && (
                 <div className="p-4 bg-gray-50 rounded-lg">
-                  <div className="text-sm text-gray-600">Thay đổi</div>
+                  <div className="text-sm text-gray-600">Change</div>
                   <div
                     className={`text-2xl font-bold ${
                       result.price_change_percent >= 0
@@ -220,11 +220,11 @@ export function CausalAnalysisCard({
 
             {/* Sentiment */}
             <div>
-              <h3 className="text-sm font-semibold mb-2">Phân tích cảm xúc</h3>
+              <h3 className="text-sm font-semibold mb-2">Sentiment Analysis</h3>
               <div className="flex items-center gap-2">
                 <Badge variant="outline">{result.sentiment_label}</Badge>
                 <span className="text-sm text-gray-600">
-                  Điểm: {(result.sentiment_score * 100).toFixed(1)}%
+                  Score: {(result.sentiment_score * 100).toFixed(1)}%
                 </span>
               </div>
             </div>
@@ -232,7 +232,7 @@ export function CausalAnalysisCard({
             {/* Causal Relationship */}
             <div>
               <h3 className="text-sm font-semibold mb-2">
-                Mối quan hệ nhân quả
+                Causal Relationship
               </h3>
               <div className="space-y-2">
                 <Badge
@@ -248,7 +248,7 @@ export function CausalAnalysisCard({
                 </div>
                 <div className="mt-2">
                   <div className="text-xs font-semibold text-gray-600 mb-1">
-                    Bằng chứng:
+                    Evidence:
                   </div>
                   <ul className="list-disc list-inside space-y-1 text-sm text-gray-600">
                     {result.causal_relationship.evidence_points.map(
@@ -259,7 +259,7 @@ export function CausalAnalysisCard({
                   </ul>
                 </div>
                 <div className="text-xs text-gray-500">
-                  Hệ số tương quan:{" "}
+                  Correlation Coefficient:{" "}
                   {result.causal_relationship.correlation_score.toFixed(3)}
                 </div>
               </div>
@@ -267,7 +267,7 @@ export function CausalAnalysisCard({
 
             {/* Trend Prediction */}
             <div className="border-t pt-4">
-              <h3 className="text-sm font-semibold mb-3">Dự đoán xu hướng</h3>
+              <h3 className="text-sm font-semibold mb-3">Trend Prediction</h3>
               <div className="space-y-3">
                 <div className="flex items-center gap-2">
                   {getTrendIcon(result.trend_prediction.direction)}
@@ -278,19 +278,19 @@ export function CausalAnalysisCard({
                     {result.trend_prediction.direction}
                   </Badge>
                   <span className="text-sm text-gray-600">
-                    Độ tin cậy:{" "}
+                    Confidence:{" "}
                     {(result.trend_prediction.confidence * 100).toFixed(1)}%
                   </span>
                 </div>
                 <div className="p-4 bg-blue-50 rounded-lg">
-                  <div className="text-sm font-semibold mb-2">Lý do:</div>
+                  <div className="text-sm font-semibold mb-2">Reasoning:</div>
                   <p className="text-sm text-gray-700 whitespace-pre-wrap">
                     {result.trend_prediction.reasoning}
                   </p>
                 </div>
                 <div>
                   <div className="text-xs font-semibold text-gray-600 mb-1">
-                    Yếu tố chính:
+                    Key Factors:
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {result.trend_prediction.key_factors.map((factor, idx) => (
@@ -301,7 +301,7 @@ export function CausalAnalysisCard({
                   </div>
                 </div>
                 <div className="text-sm">
-                  <span className="text-gray-600">Dự kiến thay đổi: </span>
+                  <span className="text-gray-600">Expected Change: </span>
                   <span
                     className={`font-semibold ${
                       result.trend_prediction.expected_change_percent >= 0
@@ -323,19 +323,19 @@ export function CausalAnalysisCard({
             {expanded && (
               <div className="border-t pt-4">
                 <h3 className="text-sm font-semibold mb-2">
-                  Lịch sử giá (tóm tắt)
+                  Price History (Summary)
                 </h3>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <div className="text-gray-600">Trước tin tức:</div>
+                    <div className="text-gray-600">Before News:</div>
                     <div className="font-semibold">
-                      {result.price_history_before.length} điểm dữ liệu
+                      {result.price_history_before.length} data points
                     </div>
                   </div>
                   <div>
-                    <div className="text-gray-600">Sau tin tức:</div>
+                    <div className="text-gray-600">After News:</div>
                     <div className="font-semibold">
-                      {result.price_history_after.length} điểm dữ liệu
+                      {result.price_history_after.length} data points
                     </div>
                   </div>
                 </div>
@@ -347,7 +347,7 @@ export function CausalAnalysisCard({
               size="sm"
               onClick={() => setExpanded(!expanded)}
             >
-              {expanded ? "Thu gọn" : "Xem thêm chi tiết"}
+              {expanded ? "Collapse" : "View More Details"}
             </Button>
           </div>
         )}
