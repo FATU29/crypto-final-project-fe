@@ -17,6 +17,9 @@ import {
   TrendingUp,
   Newspaper,
   ChevronDown,
+  Crown,
+  User,
+  LogOut,
 } from "lucide-react";
 
 export function Navbar() {
@@ -137,16 +140,43 @@ export function Navbar() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>
                     <div className="flex flex-col space-y-1">
-                      <p className="text-sm font-medium leading-none">
-                        {getFullName(user)}
-                      </p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-medium leading-none">
+                          {getFullName(user)}
+                        </p>
+                        {user.accountType === "VIP" && (
+                          <Crown className="h-3 w-3 text-yellow-500" />
+                        )}
+                      </div>
                       <p className="text-xs leading-none text-muted-foreground">
                         {user.email}
                       </p>
+                      {user.accountType && (
+                        <p className="text-xs leading-none text-muted-foreground pt-1">
+                          <span
+                            className={
+                              user.accountType === "VIP"
+                                ? "text-yellow-600 font-medium"
+                                : ""
+                            }
+                          >
+                            {user.accountType}
+                          </span>{" "}
+                          Account
+                        </p>
+                      )}
                     </div>
                   </DropdownMenuLabel>
                   <DropdownMenuSeparator />
+                  <DropdownMenuItem asChild>
+                    <Link href="/profile" className="cursor-pointer">
+                      <User className="h-4 w-4 mr-2" />
+                      Profile
+                    </Link>
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
                   <DropdownMenuItem onClick={() => logout()}>
+                    <LogOut className="h-4 w-4 mr-2" />
                     Log out
                   </DropdownMenuItem>
                 </DropdownMenuContent>

@@ -18,7 +18,13 @@ const transformAuthResponse = (
   }
 
   const { data } = backendResponse;
-  const { user: backendUser, accessToken, refreshToken, tokenType, expiresIn } = data;
+  const {
+    user: backendUser,
+    accessToken,
+    refreshToken,
+    tokenType,
+    expiresIn,
+  } = data;
 
   return {
     user: {
@@ -26,6 +32,7 @@ const transformAuthResponse = (
       email: backendUser.email,
       firstName: backendUser.firstName,
       lastName: backendUser.lastName,
+      accountType: backendUser.accountType,
     },
     tokens: {
       accessToken,
@@ -37,9 +44,7 @@ const transformAuthResponse = (
 };
 
 // Transform backend user profile to frontend User format
-const transformUserProfile = (
-  backendResponse: ApiResponse<User>
-): User => {
+const transformUserProfile = (backendResponse: ApiResponse<User>): User => {
   if (!backendResponse.success || !backendResponse.data) {
     throw new Error(backendResponse.message || "Failed to get user profile");
   }
@@ -92,5 +97,13 @@ export const authService = {
       API_ENDPOINTS.auth.changePassword,
       data
     );
+  },
+
+  async upgradeAccount(accountType: "VIP"): Promise<User> {
+    const response = await apiClient.put<ApiResponse<User>>(
+      API_ENDPOINTS.auth.upgradeAccount,
+      { accountType }
+    );
+    return transformUserProfile(response);
   },
 };

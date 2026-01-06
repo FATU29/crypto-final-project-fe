@@ -29,6 +29,7 @@ export default function NewsDetailPage() {
     const fetchNews = async () => {
       try {
         setLoading(true);
+        setError(null);
         const id = params.id as string;
         const data = await NewsAPI.getById(id);
         setNews(data);
@@ -39,10 +40,19 @@ export default function NewsDetailPage() {
           (!data.content || data.content.length < 500) &&
           data.source_url
         ) {
-          // Auto fetch detail immediately
-          const fullArticle = await fetchDetail(data.id);
-          if (fullArticle) {
-            setNews(fullArticle);
+          // Auto fetch detail immediately with better error handling
+          try {
+            const fullArticle = await fetchDetail(data.id);
+            if (fullArticle) {
+              setNews(fullArticle);
+            } else {
+              console.warn(
+                "Failed to fetch full article, showing summary only"
+              );
+            }
+          } catch (fetchErr) {
+            console.error("Error fetching article detail:", fetchErr);
+            // Continue with partial data instead of failing completely
           }
         }
       } catch (err) {
@@ -149,6 +159,19 @@ export default function NewsDetailPage() {
             </span>
           </div>
         </div>
+
+        {/* Fetching Detail Banner */}
+        {fetchingDetail && (
+          <div className="sticky top-4 z-10 mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg shadow-sm">
+            <div className="flex items-center gap-3">
+              <div className="animate-spin h-5 w-5 border-2 border-blue-500 border-t-transparent rounded-full"></div>
+              <p className="text-sm text-blue-800 font-medium">
+                Fetching full article content from source... This may take up to
+                30 seconds.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Image */}
         {news.image_url && (

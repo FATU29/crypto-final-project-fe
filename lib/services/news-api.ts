@@ -66,17 +66,55 @@ export class NewsAPI {
 
   // Fetch full article details from source URL
   static async fetchArticleDetails(id: string): Promise<News | null> {
-    try {
-      const response = await fetch(`${API_BASE}/news/${id}/fetch-detail`, {
-        method: "POST",
-      });
-      if (!response.ok) return null;
-      const data: NewsApiResponse<News> = await response.json();
-      return data.data || null;
-    } catch (error) {
-      console.error("Failed to fetch article details:", error);
-      return null;
+    const maxRetries = 2;
+    const timeout = 45000; // 45 seconds timeout
+
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), timeout);
+
+        const response = await fetch(`${API_BASE}/news/${id}/fetch-detail`, {
+          method: "POST",
+          signal: controller.signal,
+          headers: {
+            "Content-Type": "application/json",
+          },
+        });
+
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          if (attempt < maxRetries) {
+            // Wait before retry (exponential backoff)
+            await new Promise((resolve) =>
+              setTimeout(resolve, 1000 * (attempt + 1))
+            );
+            continue;
+          }
+          return null;
+        }
+
+        const data: NewsApiResponse<News> = await response.json();
+        return data.data || null;
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          console.error("Request timeout - article fetch took too long");
+        } else {
+          console.error("Failed to fetch article details:", error);
+        }
+
+        if (attempt < maxRetries) {
+          // Wait before retry
+          await new Promise((resolve) =>
+            setTimeout(resolve, 1000 * (attempt + 1))
+          );
+          continue;
+        }
+        return null;
+      }
     }
+    return null;
   }
 
   // Get summaries (optimized for UI)
@@ -209,9 +247,7 @@ export class NewsAPI {
     if (data.success) {
       return data.data!;
     }
-    throw new Error(
-      data.message || "Failed to get cron job status"
-    );
+    throw new Error(data.message || "Failed to get cron job status");
   }
 
   static async startCronJob(): Promise<void> {

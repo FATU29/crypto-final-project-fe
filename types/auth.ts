@@ -1,3 +1,5 @@
+export type AccountType = "STANDARD" | "VIP";
+
 export interface User {
   id: string;
   email: string;
@@ -5,6 +7,7 @@ export interface User {
   lastName: string;
   avatar?: string;
   enabled?: boolean;
+  accountType: AccountType;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -47,6 +50,7 @@ export interface BackendAuthResponse {
     email: string;
     firstName: string;
     lastName: string;
+    accountType: AccountType;
   };
 }
 

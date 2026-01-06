@@ -6,6 +6,7 @@ export const API_ENDPOINTS = {
     refresh: "/api/v1/auth/refresh-token",
     me: "/api/v1/auth/me",
     changePassword: "/api/v1/auth/change-password",
+    upgradeAccount: "/api/v1/auth/upgrade-account",
   },
   users: {
     list: "/users",
@@ -24,8 +25,8 @@ export const API_ENDPOINTS = {
     getSummaries: "/news/summaries",
     getByPair: (pair: string) => `/news/pair/${pair}`,
     getAdvanced: "/news/advanced",
-    analyzeSentiment: (id: string) => `/ai/sentiment/${id}`,
-    getAnalyzedNews: "/ai/analyzed-news",
+    analyzeSentiment: (id: string) => `/api/v1/ai/sentiment/${id}`,
+    getAnalyzedNews: "/api/v1/ai/analyzed-news",
   },
   crawler: {
     start: "/crawler/start",
