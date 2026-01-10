@@ -22,6 +22,19 @@ COPY . .
 # Set environment variables for build
 ENV NEXT_TELEMETRY_DISABLED=1
 
+# Build arguments for NEXT_PUBLIC_* environment variables
+# These are inlined at build time by Next.js
+ARG NEXT_PUBLIC_API_URL=http://localhost:9000
+ARG NEXT_PUBLIC_AI_URL=http://localhost:8000
+ARG NEXT_PUBLIC_WS_URL=ws://localhost:3001
+ARG NEXT_PUBLIC_APP_URL=http://localhost:3000
+
+# Set as ENV for build process
+ENV NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL}
+ENV NEXT_PUBLIC_AI_URL=${NEXT_PUBLIC_AI_URL}
+ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
+ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
+
 # Build the application
 RUN npm run build
 

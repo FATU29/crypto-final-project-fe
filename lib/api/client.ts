@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosRequestConfig, AxiosError } from "axios";
 import { config } from "@/config";
+import { getHttpErrorMessage } from "@/lib/utils/error-handler";
 
 class ApiClient {
   private client: AxiosInstance;
@@ -96,17 +97,59 @@ class ApiClient {
 
         // Handle other error status codes according to integration guide
         // 400: Bad Request, 403: Forbidden, 404: Not Found, 503: Service Unavailable
-        if (error.response?.data) {
+        if (error.response) {
+          const status = error.response.status;
           const errorData = error.response.data as {
             message?: string;
             error?: string;
+            detail?: string;
           };
-          // Extract error message from ApiResponse format
-          if (errorData?.message) {
-            error.message = errorData.message;
+
+          // Build user-friendly error message in English
+          let errorMessage: string;
+
+          // Special handling for authentication errors
+          if (status === 401) {
+            const originalMessage =
+              errorData?.message || errorData?.detail || errorData?.error || "";
+
+            if (
+              originalMessage.includes("Missing") &&
+              originalMessage.includes("Authorization")
+            ) {
+              errorMessage = "Please log in to access this feature";
+            } else if (
+              originalMessage.includes("invalid") &&
+              originalMessage.includes("token")
+            ) {
+              errorMessage = "Your session has expired. Please log in again";
+            } else if (originalMessage.includes("expired")) {
+              errorMessage = "Your session has expired. Please log in again";
+            } else {
+              errorMessage =
+                originalMessage ||
+                "Authentication required. Please log in to continue";
+            }
+          } else if (errorData?.message) {
+            errorMessage = errorData.message;
+          } else if (errorData?.detail) {
+            errorMessage = errorData.detail;
           } else if (errorData?.error) {
-            error.message = errorData.error;
+            errorMessage = errorData.error;
+          } else {
+            // Use utility function to get standard error message
+            errorMessage = getHttpErrorMessage(
+              status,
+              error.response.statusText
+            );
           }
+
+          // Override error message with user-friendly version
+          error.message = errorMessage;
+        } else if (error.request) {
+          // Network error
+          error.message =
+            "Network error: Unable to connect to server. Please check your internet connection";
         }
 
         return Promise.reject(error);

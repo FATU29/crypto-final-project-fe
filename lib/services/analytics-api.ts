@@ -1,9 +1,9 @@
 // lib/services/analytics-api.ts
 
-import axios from "axios";
+import { apiClient } from "@/lib/api/client";
 
-const API_BASE_URL =
-  process.env.NEXT_PUBLIC_CRAWL_API || "http://localhost:9000/api/v1";
+// IMPORTANT: All analytics API calls MUST go through Gateway for VIP authentication
+// Analytics endpoints require VIP account access
 
 export interface SentimentTrend {
   time: string;
@@ -35,6 +35,7 @@ export interface SentimentByPair {
 export const AnalyticsAPI = {
   /**
    * Get sentiment trends over time
+   * Requires VIP account access via Gateway authentication
    */
   getSentimentTrends: async (
     params?: SentimentTrendRequest
@@ -57,13 +58,13 @@ export const AnalyticsAPI = {
       queryParams.append("trading_pairs", params.trading_pairs.join(","));
     }
 
-    const response = await axios.get<{
+    const response = await apiClient.get<{
       status: string;
       data: SentimentTrend[];
-    }>(`${API_BASE_URL}/analytics/sentiment/trends?${queryParams.toString()}`);
+    }>(`/api/v1/analytics/sentiment/trends?${queryParams.toString()}`);
 
-    if (response.data.status === "success") {
-      return response.data.data;
+    if (response.status === "success") {
+      return response.data;
     }
 
     throw new Error("Failed to fetch sentiment trends");
@@ -71,18 +72,18 @@ export const AnalyticsAPI = {
 
   /**
    * Get sentiment breakdown by trading pair
+   * Requires VIP account access via Gateway authentication
    */
   getSentimentByPair: async (pair: string): Promise<SentimentByPair> => {
-    const response = await axios.get<{
+    const response = await apiClient.get<{
       status: string;
       data: SentimentByPair;
-    }>(`${API_BASE_URL}/analytics/sentiment/pair/${pair}`);
+    }>(`/api/v1/analytics/sentiment/pair/${pair}`);
 
-    if (response.data.status === "success") {
-      return response.data.data;
+    if (response.status === "success") {
+      return response.data;
     }
 
     throw new Error("Failed to fetch sentiment by pair");
   },
 };
-

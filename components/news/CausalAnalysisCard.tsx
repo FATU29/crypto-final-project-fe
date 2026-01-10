@@ -12,6 +12,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { ErrorAlert } from "@/components/ui/error-alert";
 import {
   Loader2,
   TrendingUp,
@@ -170,10 +171,13 @@ export function CausalAnalysisCard({
         )}
 
         {error && (
-          <Alert variant="destructive" className="mb-4">
-            <AlertCircle className="h-4 w-4" />
-            <AlertDescription>{error}</AlertDescription>
-          </Alert>
+          <ErrorAlert
+            error={error}
+            title="Analysis Failed"
+            showRetry={true}
+            onRetry={handleAnalyze}
+            className="mb-4"
+          />
         )}
 
         {loading && !result && (

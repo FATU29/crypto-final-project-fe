@@ -3,6 +3,22 @@
 import { useState } from "react";
 import { NewsAPI } from "@/lib/services/news-api";
 import { News } from "@/types/news";
+import { config } from "@/config";
+import {
+  handleFetchError,
+  formatNetworkError,
+  formatErrorMessage,
+} from "@/lib/utils/error-handler";
+
+// IMPORTANT: All AI API calls MUST go through Gateway for VIP authentication
+const GATEWAY_API_BASE =
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
+
+// Helper function to get auth token
+const getAuthToken = (): string | null => {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(config.auth.tokenKey);
+};
 
 export function useNewsAnalysis() {
   const [loading, setLoading] = useState(false);
@@ -20,7 +36,8 @@ export function useNewsAnalysis() {
       }
       return null;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      const errorMessage = formatNetworkError(err);
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -35,13 +52,21 @@ export function useNewsAnalysis() {
     setError(null);
 
     try {
+      const token = getAuthToken();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists (required for VIP AI features)
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
       const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_CRAWL_API || "http://localhost:9000/api/v1"
-        }/ai/price-impact`,
+        `${GATEWAY_API_BASE}/api/v1/ai/price-impact`,
         {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers,
           body: JSON.stringify({
             news_id: newsId,
             trading_pairs: tradingPairs,
@@ -49,12 +74,17 @@ export function useNewsAnalysis() {
         }
       );
 
+      if (!response.ok) {
+        await handleFetchError(response, "Price impact analysis");
+      }
+
       if (response.ok) {
         return await NewsAPI.getById(newsId);
       }
       return null;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      const errorMessage = formatNetworkError(err);
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
@@ -69,19 +99,28 @@ export function useNewsAnalysis() {
     setError(null);
 
     try {
-      const response = await fetch(
-        `${
-          process.env.NEXT_PUBLIC_CRAWL_API || "http://localhost:9000/api/v1"
-        }/ai/analyze`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            news_id: newsId,
-            trading_pairs: tradingPairs || [],
-          }),
-        }
-      );
+      const token = getAuthToken();
+      const headers: HeadersInit = {
+        "Content-Type": "application/json",
+      };
+
+      // Add Authorization header if token exists (required for VIP AI features)
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(`${GATEWAY_API_BASE}/api/v1/ai/analyze`, {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          news_id: newsId,
+          trading_pairs: tradingPairs || [],
+        }),
+      });
+
+      if (!response.ok) {
+        await handleFetchError(response, "News analysis");
+      }
 
       if (response.ok) {
         const data = await response.json();
@@ -89,7 +128,8 @@ export function useNewsAnalysis() {
       }
       return null;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Analysis failed");
+      const errorMessage = formatNetworkError(err);
+      setError(errorMessage);
       return null;
     } finally {
       setLoading(false);
