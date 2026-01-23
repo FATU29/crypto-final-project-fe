@@ -23,6 +23,10 @@ export interface News {
   price_impact?: PriceImpact;
   ai_analyzed: boolean;
   analyzed_at?: string;
+
+  // Parsing metadata
+  parsing_method?: "rule-based" | "ai" | "fallback";
+  parsing_confidence?: number; // 0.0 to 1.0
 }
 
 export interface SentimentAnalysis {
@@ -51,6 +55,8 @@ export interface NewsSummary {
   sentiment_label?: string;
   sentiment_score?: number;
   related_pairs?: string[];
+  parsing_method?: "rule-based" | "ai" | "fallback";
+  parsing_confidence?: number; // 0.0 to 1.0
 }
 
 export interface NewsFilter {
@@ -62,6 +68,7 @@ export interface NewsFilter {
   sentiment?: "positive" | "negative" | "neutral";
   min_score?: number;
   ai_analyzed?: boolean;
+  parsing_method?: "rule-based" | "ai" | "fallback" | "all";
   language?: string;
   limit?: number;
 }

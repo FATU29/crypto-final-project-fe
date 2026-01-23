@@ -151,10 +151,12 @@ export class NewsAPI {
     if (filters.trading_pairs?.length)
       params.append("trading_pairs", filters.trading_pairs.join(","));
     if (filters.sentiment) params.append("sentiment", filters.sentiment);
-    if (filters.min_score)
+    if (filters.min_score !== undefined)
       params.append("min_score", filters.min_score.toString());
     if (filters.ai_analyzed !== undefined)
       params.append("ai_analyzed", filters.ai_analyzed.toString());
+    if (filters.parsing_method && filters.parsing_method !== "all")
+      params.append("parsing_method", filters.parsing_method);
     if (filters.language) params.append("language", filters.language);
 
     const response = await fetch(`${API_BASE}/news/advanced?${params}`);
@@ -182,6 +184,8 @@ export class NewsAPI {
     if (filters.sentiment) params.append("sentiment", filters.sentiment);
     if (filters.ai_analyzed !== undefined)
       params.append("ai_analyzed", filters.ai_analyzed.toString());
+    if (filters.parsing_method && filters.parsing_method !== "all")
+      params.append("parsing_method", filters.parsing_method);
     if (filters.start_date) params.append("start_date", filters.start_date);
     if (filters.end_date) params.append("end_date", filters.end_date);
     if (filters.min_score)

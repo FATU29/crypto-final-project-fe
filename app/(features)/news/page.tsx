@@ -1,10 +1,9 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState } from "react";
 import {
   PaginatedNewsList,
   NewsFilterComponent,
-  CrawlerControl,
   SentimentTrendChart,
 } from "@/components/news";
 import { NewsFilter } from "@/types/news";
@@ -21,55 +20,36 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function NewsPage() {
   const [filters, setFilters] = useState<NewsFilter>({});
-  const { news, refetch: refetchNews } = useNews(filters);
-  const newsListRefetchRef = useRef<(() => void) | null>(null);
-
-  const handleNewsListRefetchReady = useCallback((refetch: () => void) => {
-    newsListRefetchRef.current = refetch;
-  }, []);
-
-  const handleCrawlComplete = useCallback(() => {
-    // Refetch news list after crawl completes
-    if (newsListRefetchRef.current) {
-      newsListRefetchRef.current();
-    }
-    // Also refetch news summaries
-    refetchNews();
-  }, [refetchNews]);
+  const { news } = useNews(filters);
 
   return (
     <div className="container mx-auto py-6 space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Crypto News & Sentiment</CardTitle>
+          <CardTitle>Crypto News & Sentiment Analysis</CardTitle>
           <CardDescription>
-            Latest cryptocurrency news with AI-powered sentiment analysis and
-            on-demand full article loading
+            Real-time cryptocurrency news with AI-powered sentiment analysis
+            from multiple trusted sources
           </CardDescription>
         </CardHeader>
         <CardContent>
           <Tabs defaultValue="news" className="w-full">
             <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="news">News</TabsTrigger>
+              <TabsTrigger value="news">News Feed</TabsTrigger>
               <TabsTrigger value="trends">Sentiment Trends</TabsTrigger>
             </TabsList>
 
             <TabsContent value="news" className="mt-6">
               <div className="grid gap-6 lg:grid-cols-4">
-                {/* Sidebar */}
+                {/* Sidebar - Filters & Stats */}
                 <div className="space-y-6 lg:col-span-1">
-                  <CrawlerControl onCrawlComplete={handleCrawlComplete} />
                   <NewsFilterComponent onFilterChange={setFilters} />
                   {news.length > 0 && <SentimentStats news={news} />}
                 </div>
 
-                {/* Main Content with Pagination */}
+                {/* Main Content - News List with Pagination */}
                 <div className="lg:col-span-3">
-                  <PaginatedNewsList 
-                    filters={filters} 
-                    itemsPerPage={20}
-                    onRefetchReady={handleNewsListRefetchReady}
-                  />
+                  <PaginatedNewsList filters={filters} itemsPerPage={20} />
                 </div>
               </div>
             </TabsContent>

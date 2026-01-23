@@ -149,6 +149,17 @@ export default function NewsDetailPage() {
             {/* Source */}
             <Badge variant="outline">{news.source}</Badge>
 
+            {/* Parsing Method Badge */}
+            {news.parsing_method === "ai" && (
+              <Badge
+                variant="outline"
+                className="border-purple-300 text-purple-700 bg-purple-50"
+                title={`This article was parsed using AI (Confidence: ${((news.parsing_confidence || 0) * 100).toFixed(0)}%)`}
+              >
+                🤖 AI Parsed
+              </Badge>
+            )}
+
             {/* Author */}
             {news.author && <span>By {news.author}</span>}
 
@@ -229,12 +240,39 @@ export default function NewsDetailPage() {
 
         {/* Causal Analysis - Show message if content not ready */}
         {news.related_pairs && news.related_pairs.length > 0 && !canAnalyze && (
-          <div className="mt-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
-            <p className="text-sm text-gray-600">
-              {fetchingDetail
-                ? "Loading full content for causal analysis..."
-                : "Please load full content to use causal analysis"}
-            </p>
+          <div className="mt-6 p-4 bg-yellow-50 rounded-lg border border-yellow-200">
+            <div className="flex items-start gap-3">
+              <div className="flex-1">
+                <p className="text-sm font-medium text-yellow-800 mb-1">
+                  Content loading for AI Analysis
+                </p>
+                <p className="text-xs text-yellow-700">
+                  {fetchingDetail
+                    ? "Loading full content for causal analysis..."
+                    : news.content && news.content.length > 0
+                    ? `Current content: ${news.content.length} chars (need 500+ for analysis). Click to fetch full content.`
+                    : "Please load full content to use causal analysis"}
+                </p>
+              </div>
+              {!fetchingDetail && news.source_url && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={async () => {
+                    try {
+                      const fullArticle = await fetchDetail(news.id);
+                      if (fullArticle) {
+                        setNews(fullArticle);
+                      }
+                    } catch (err) {
+                      console.error("Failed to fetch detail:", err);
+                    }
+                  }}
+                >
+                  Fetch Full Content
+                </Button>
+              )}
+            </div>
           </div>
         )}
 

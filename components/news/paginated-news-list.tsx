@@ -6,25 +6,19 @@ import { useState, useEffect, useCallback } from "react";
 import { NewsCard } from "./news-card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, RefreshCw } from "lucide-react";
-import { Switch } from "@/components/ui/switch";
-import { Label } from "@/components/ui/label";
 import { NewsFilter, News } from "@/types/news";
 import { NewsAPI, PaginatedResponse } from "@/lib/services/news-api";
 
 interface PaginatedNewsListProps {
   filters?: NewsFilter;
   itemsPerPage?: number;
-  onRefetchReady?: (refetch: () => void) => void;
 }
 
 export function PaginatedNewsList({
   filters = {},
   itemsPerPage = 20,
-  onRefetchReady,
 }: PaginatedNewsListProps) {
   const [page, setPage] = useState(1);
-  const [autoRefresh, setAutoRefresh] = useState(false);
-  const [refreshInterval] = useState(30000); // 30 seconds
   const [data, setData] = useState<PaginatedResponse<News> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -52,27 +46,11 @@ export function PaginatedNewsList({
     fetchNews();
   }, [fetchNews]);
 
-  const refetch = fetchNews;
+  const refetch = useCallback(() => {
+    fetchNews();
+  }, [fetchNews]);
 
-  // Expose refetch function to parent
-  useEffect(() => {
-    if (onRefetchReady) {
-      onRefetchReady(refetch);
-    }
-  }, [onRefetchReady, refetch]);
-
-  // Auto-refresh effect
-  useEffect(() => {
-    if (!autoRefresh) return;
-
-    const interval = setInterval(() => {
-      refetch();
-    }, refreshInterval);
-
-    return () => clearInterval(interval);
-  }, [autoRefresh, refreshInterval, refetch]);
-
-  if (loading) {
+  if (loading && !data) {
     return (
       <div className="space-y-6">
         {Array.from({ length: 5 }).map((_, i) => (
@@ -102,12 +80,7 @@ export function PaginatedNewsList({
           Error loading news
         </p>
         <p className="text-xs text-red-600">{error}</p>
-        <Button
-          onClick={() => window.location.reload()}
-          variant="outline"
-          size="sm"
-          className="mt-4"
-        >
+        <Button onClick={refetch} variant="outline" size="sm" className="mt-4">
           Try Again
         </Button>
       </div>
@@ -118,9 +91,15 @@ export function PaginatedNewsList({
     return (
       <div className="rounded-lg border border-gray-200 bg-gray-50 p-12 text-center">
         <p className="text-gray-600 font-medium mb-2">No news found</p>
-        <p className="text-sm text-gray-500">
-          Start the crawler to fetch latest crypto news
+        <p className="text-sm text-gray-500 mb-4">
+          {Object.keys(filters).length > 0
+            ? "Try adjusting your filters or check back later for new content"
+            : "News will appear here automatically from our crawler"}
         </p>
+        <Button onClick={refetch} variant="outline" size="sm" className="gap-2">
+          <RefreshCw className="h-4 w-4" />
+          Refresh
+        </Button>
       </div>
     );
   }
@@ -129,27 +108,13 @@ export function PaginatedNewsList({
 
   return (
     <div className="space-y-6">
-      {/* Controls */}
+      {/* Controls - Only Show Refresh */}
       <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <div className="flex items-center gap-2">
-            <Switch
-              id="auto-refresh"
-              checked={autoRefresh}
-              onCheckedChange={setAutoRefresh}
-            />
-            <Label htmlFor="auto-refresh" className="text-sm text-gray-600">
-              Auto-refresh
-            </Label>
-          </div>
-          {autoRefresh && (
-            <span className="text-xs text-gray-500">
-              Refreshing every {refreshInterval / 1000}s
-            </span>
-          )}
+        <div className="text-sm text-gray-600">
+          <span className="font-medium">{pagination.total}</span> articles found
         </div>
         <Button
-          onClick={() => refetch()}
+          onClick={refetch}
           variant="outline"
           size="sm"
           disabled={loading}
@@ -183,7 +148,7 @@ export function PaginatedNewsList({
           <div className="flex items-center gap-2">
             <Button
               onClick={() => setPage(page - 1)}
-              disabled={!pagination.has_prev}
+              disabled={!pagination.has_prev || loading}
               variant="outline"
               size="sm"
               className="gap-1"
@@ -203,6 +168,7 @@ export function PaginatedNewsList({
                     <Button
                       key={pageNum}
                       onClick={() => setPage(pageNum)}
+                      disabled={loading}
                       variant={isActive ? "default" : "outline"}
                       size="sm"
                       className="w-10"
@@ -210,7 +176,7 @@ export function PaginatedNewsList({
                       {pageNum}
                     </Button>
                   );
-                }
+                },
               )}
 
               {pagination.total_pages > 5 && (
@@ -218,6 +184,7 @@ export function PaginatedNewsList({
                   <span className="px-2 text-gray-400">...</span>
                   <Button
                     onClick={() => setPage(pagination.total_pages)}
+                    disabled={loading}
                     variant={
                       page === pagination.total_pages ? "default" : "outline"
                     }
@@ -232,7 +199,7 @@ export function PaginatedNewsList({
 
             <Button
               onClick={() => setPage(page + 1)}
-              disabled={!pagination.has_next}
+              disabled={!pagination.has_next || loading}
               variant="outline"
               size="sm"
               className="gap-1"

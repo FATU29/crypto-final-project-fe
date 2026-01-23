@@ -82,6 +82,16 @@ export function NewsCard({ news }: NewsCardProps) {
                 {news.source}
               </span>
 
+              {/* Parsing Method Badge */}
+              {"parsing_method" in news && news.parsing_method === "ai" && (
+                <span
+                  className="rounded bg-purple-50 border border-purple-200 px-2 py-1 text-xs font-medium text-purple-700"
+                  title={`AI Parsed (Confidence: ${((news.parsing_confidence || 0) * 100).toFixed(0)}%)`}
+                >
+                  🤖 AI
+                </span>
+              )}
+
               {/* Sentiment */}
               {news.sentiment_label && (
                 <SentimentBadge

@@ -3,28 +3,19 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   images: {
+    // Allow images from all domains (news sources can be from anywhere)
     remotePatterns: [
       {
         protocol: "https",
-        hostname: "images.unsplash.com",
+        hostname: "**",
       },
       {
-        protocol: "https",
-        hostname: "**.coindesk.com",
-      },
-      {
-        protocol: "https",
-        hostname: "**.cointelegraph.com",
-      },
-      {
-        protocol: "https",
-        hostname: "**.bloomberg.com",
-      },
-      {
-        protocol: "https",
-        hostname: "**.reuters.com",
+        protocol: "http",
+        hostname: "**",
       },
     ],
+    // Enable unoptimized mode for external images to avoid domain restrictions
+    unoptimized: false,
   },
 };
 

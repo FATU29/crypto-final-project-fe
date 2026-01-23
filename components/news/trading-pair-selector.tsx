@@ -127,15 +127,7 @@ export function TradingPairSelector({
           </SelectContent>
         </Select>
 
-        {/* Manual Input */}
-        <input
-          type="text"
-          placeholder="Or type pair (e.g., BTCUSDT)"
-          value={inputValue}
-          onChange={(e) => setInputValue(e.target.value.toUpperCase())}
-          onKeyDown={handleInputKeyDown}
-          className="flex-1 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-        />
+     
       </div>
 
       {/* Quick Add Popular Pairs */}

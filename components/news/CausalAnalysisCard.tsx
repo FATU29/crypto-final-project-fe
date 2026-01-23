@@ -18,6 +18,7 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Brain,
   AlertCircle,
 } from "lucide-react";
 import { useCausalAnalysis } from "@/hooks/use-causal-analysis";
@@ -143,6 +144,7 @@ export function CausalAnalysisCard({
               onClick={handleAnalyze}
               disabled={loading || !hasSufficientContent}
               size="sm"
+              className={hasSufficientContent ? "bg-primary hover:bg-primary/90" : ""}
             >
               {loading ? (
                 <>
@@ -150,9 +152,15 @@ export function CausalAnalysisCard({
                   Analyzing...
                 </>
               ) : !hasSufficientContent ? (
-                "Loading content..."
+                <>
+                  <AlertCircle className="mr-2 h-4 w-4" />
+                  Need more content (500+ chars)
+                </>
               ) : (
-                "Start Analysis"
+                <>
+                  <Brain className="mr-2 h-4 w-4" />
+                  Start AI Analysis
+                </>
               )}
             </Button>
           )}
