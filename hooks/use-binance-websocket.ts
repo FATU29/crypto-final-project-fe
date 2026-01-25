@@ -61,6 +61,8 @@ export function useBinanceWebSocket({
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const reconnectAttemptsRef = useRef(0);
   const connectFnRef = useRef<(() => void) | null>(null);
+  const prevSymbolRef = useRef<string | null>(null);
+  const prevIntervalRef = useRef<string | null>(null);
   const maxReconnectAttempts = 5;
   const reconnectDelay = 3000;
 
@@ -87,6 +89,20 @@ export function useBinanceWebSocket({
     if (!enabled || !symbol || !interval) {
       return;
     }
+
+    // Reset state when symbol or interval changes (before connecting)
+    const symbolChanged = prevSymbolRef.current !== null && prevSymbolRef.current !== symbol;
+    const intervalChanged = prevIntervalRef.current !== null && prevIntervalRef.current !== interval;
+    
+    if (symbolChanged || intervalChanged) {
+      setLastMessage(null);
+      setError(null);
+      setIsConnected(false);
+    }
+    
+    // Update refs
+    prevSymbolRef.current = symbol;
+    prevIntervalRef.current = interval;
 
     // Close existing connection
     if (wsRef.current) {
@@ -190,6 +206,10 @@ export function useBinanceWebSocket({
         clearTimeout(timer);
         disconnect();
       };
+    } else {
+      // If disabled, ensure we disconnect
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      disconnect();
     }
   }, [symbol, interval, enabled, connect, disconnect]);
 

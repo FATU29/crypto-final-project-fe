@@ -39,6 +39,7 @@ export function ChartContainer({ pair }: ChartContainerProps) {
       </CardHeader>
       <CardContent>
         <PriceChart
+          key={`${pair.symbol}-${selectedTimeframe.interval}`}
           symbol={pair.symbol}
           interval={selectedTimeframe.interval}
           height={500}

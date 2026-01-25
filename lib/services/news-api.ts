@@ -9,8 +9,11 @@ import {
   NewsApiResponse,
 } from "@/types/news";
 
-const API_BASE =
-  process.env.NEXT_PUBLIC_CRAWL_API || "http://localhost:9000/api/v1";
+// All API calls must go through the API Gateway
+// Gateway routes /api/v1/news/** to crawl service
+const API_BASE = process.env.NEXT_PUBLIC_API_URL
+  ? `${process.env.NEXT_PUBLIC_API_URL}/api/v1`
+  : "http://localhost:9000/api/v1"; // Fallback for local development
 
 export interface PaginatedResponse<T> {
   items: T[];
@@ -32,36 +35,54 @@ export class NewsAPI {
     source?: string,
     category?: string
   ): Promise<PaginatedResponse<News>> {
-    const params = new URLSearchParams();
-    params.append("page", page.toString());
-    params.append("limit", limit.toString());
-    if (source) params.append("source", source);
-    if (category) params.append("category", category);
+    try {
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
+      if (source) params.append("source", source);
+      if (category) params.append("category", category);
 
-    const response = await fetch(`${API_BASE}/news?${params}`);
-    const data: NewsApiResponse<PaginatedResponse<News>> =
-      await response.json();
-    return (
-      data.data || {
-        items: [],
-        pagination: {
-          page: 1,
-          limit: 20,
-          total: 0,
-          total_pages: 0,
-          has_next: false,
-          has_prev: false,
-        },
+      const response = await fetch(`${API_BASE}/news?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch news: ${response.status} ${response.statusText}`);
       }
-    );
+
+      const data: NewsApiResponse<PaginatedResponse<News>> =
+        await response.json();
+      return (
+        data.data || {
+          items: [],
+          pagination: {
+            page: 1,
+            limit: 20,
+            total: 0,
+            total_pages: 0,
+            has_next: false,
+            has_prev: false,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error fetching news:", error);
+      throw error;
+    }
   }
 
   // Get news by ID
   static async getById(id: string): Promise<News | null> {
-    const response = await fetch(`${API_BASE}/news/${id}`);
-    if (!response.ok) return null;
-    const data: NewsApiResponse<News> = await response.json();
-    return data.data || null;
+    try {
+      const response = await fetch(`${API_BASE}/news/${id}`);
+      if (!response.ok) {
+        console.error(`Failed to fetch news ${id}: ${response.status} ${response.statusText}`);
+        return null;
+      }
+      const data: NewsApiResponse<News> = await response.json();
+      return data.data || null;
+    } catch (error) {
+      console.error(`Error fetching news ${id}:`, error);
+      return null;
+    }
   }
 
   // Fetch full article details from source URL
@@ -122,46 +143,76 @@ export class NewsAPI {
     tradingPair?: string,
     limit = 20
   ): Promise<NewsSummary[]> {
-    const params = new URLSearchParams();
-    if (tradingPair) params.append("trading_pair", tradingPair);
-    if (limit) params.append("limit", limit.toString());
+    try {
+      const params = new URLSearchParams();
+      if (tradingPair) params.append("trading_pair", tradingPair);
+      if (limit) params.append("limit", limit.toString());
 
-    const response = await fetch(`${API_BASE}/news/summaries?${params}`);
-    const data: NewsApiResponse<NewsSummary[]> = await response.json();
-    return data.data || [];
+      const response = await fetch(`${API_BASE}/news/summaries?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch summaries: ${response.status} ${response.statusText}`);
+      }
+
+      const data: NewsApiResponse<NewsSummary[]> = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error("Error fetching summaries:", error);
+      return [];
+    }
   }
 
   // Get by trading pair
   static async getByTradingPair(pair: string): Promise<News[]> {
-    const response = await fetch(`${API_BASE}/news/pair/${pair}`);
-    const data: NewsApiResponse<News[]> = await response.json();
-    return data.data || [];
+    try {
+      const response = await fetch(`${API_BASE}/news/pair/${pair}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch news for pair ${pair}: ${response.status} ${response.statusText}`);
+      }
+
+      const data: NewsApiResponse<News[]> = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error(`Error fetching news for pair ${pair}:`, error);
+      return [];
+    }
   }
 
   // Advanced filtering
   static async getAdvanced(filters: NewsFilter): Promise<News[]> {
-    const params = new URLSearchParams();
+    try {
+      const params = new URLSearchParams();
 
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
-    if (filters.sources?.length)
-      params.append("sources", filters.sources.join(","));
-    if (filters.categories?.length)
-      params.append("categories", filters.categories.join(","));
-    if (filters.trading_pairs?.length)
-      params.append("trading_pairs", filters.trading_pairs.join(","));
-    if (filters.sentiment) params.append("sentiment", filters.sentiment);
-    if (filters.min_score !== undefined)
-      params.append("min_score", filters.min_score.toString());
-    if (filters.ai_analyzed !== undefined)
-      params.append("ai_analyzed", filters.ai_analyzed.toString());
-    if (filters.parsing_method && filters.parsing_method !== "all")
-      params.append("parsing_method", filters.parsing_method);
-    if (filters.language) params.append("language", filters.language);
+      if (filters.start_date) params.append("start_date", filters.start_date);
+      if (filters.end_date) params.append("end_date", filters.end_date);
+      if (filters.sources?.length)
+        params.append("sources", filters.sources.join(","));
+      if (filters.categories?.length)
+        params.append("categories", filters.categories.join(","));
+      if (filters.trading_pairs?.length)
+        params.append("trading_pairs", filters.trading_pairs.join(","));
+      if (filters.sentiment) params.append("sentiment", filters.sentiment);
+      if (filters.min_score !== undefined)
+        params.append("min_score", filters.min_score.toString());
+      if (filters.ai_analyzed !== undefined)
+        params.append("ai_analyzed", filters.ai_analyzed.toString());
+      if (filters.parsing_method && filters.parsing_method !== "all")
+        params.append("parsing_method", filters.parsing_method);
+      if (filters.language) params.append("language", filters.language);
 
-    const response = await fetch(`${API_BASE}/news/advanced?${params}`);
-    const data: NewsApiResponse<News[]> = await response.json();
-    return data.data || [];
+      const response = await fetch(`${API_BASE}/news/advanced?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch advanced news: ${response.status} ${response.statusText}`);
+      }
+
+      const data: NewsApiResponse<News[]> = await response.json();
+      return data.data || [];
+    } catch (error) {
+      console.error("Error fetching advanced news:", error);
+      return [];
+    }
   }
 
   // Get news with filters and pagination
@@ -170,33 +221,53 @@ export class NewsAPI {
     limit = 20,
     filters: NewsFilter = {}
   ): Promise<PaginatedResponse<News>> {
-    const params = new URLSearchParams();
-    params.append("page", page.toString());
-    params.append("limit", limit.toString());
+    try {
+      const params = new URLSearchParams();
+      params.append("page", page.toString());
+      params.append("limit", limit.toString());
 
-    // Add filter params
-    if (filters.sources?.length)
-      params.append("sources", filters.sources.join(","));
-    if (filters.categories?.length)
-      params.append("categories", filters.categories.join(","));
-    if (filters.trading_pairs?.length)
-      params.append("trading_pairs", filters.trading_pairs.join(","));
-    if (filters.sentiment) params.append("sentiment", filters.sentiment);
-    if (filters.ai_analyzed !== undefined)
-      params.append("ai_analyzed", filters.ai_analyzed.toString());
-    if (filters.parsing_method && filters.parsing_method !== "all")
-      params.append("parsing_method", filters.parsing_method);
-    if (filters.start_date) params.append("start_date", filters.start_date);
-    if (filters.end_date) params.append("end_date", filters.end_date);
-    if (filters.min_score)
-      params.append("min_score", filters.min_score.toString());
-    if (filters.language) params.append("language", filters.language);
+      // Add filter params
+      if (filters.sources?.length)
+        params.append("sources", filters.sources.join(","));
+      if (filters.categories?.length)
+        params.append("categories", filters.categories.join(","));
+      if (filters.trading_pairs?.length)
+        params.append("trading_pairs", filters.trading_pairs.join(","));
+      if (filters.sentiment) params.append("sentiment", filters.sentiment);
+      if (filters.ai_analyzed !== undefined)
+        params.append("ai_analyzed", filters.ai_analyzed.toString());
+      if (filters.parsing_method && filters.parsing_method !== "all")
+        params.append("parsing_method", filters.parsing_method);
+      if (filters.start_date) params.append("start_date", filters.start_date);
+      if (filters.end_date) params.append("end_date", filters.end_date);
+      if (filters.min_score)
+        params.append("min_score", filters.min_score.toString());
+      if (filters.language) params.append("language", filters.language);
 
-    const response = await fetch(`${API_BASE}/news/filter?${params}`);
-    const data: NewsApiResponse<PaginatedResponse<News>> =
-      await response.json();
-    return (
-      data.data || {
+      const response = await fetch(`${API_BASE}/news/filter?${params}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch filtered news: ${response.status} ${response.statusText}`);
+      }
+
+      const data: NewsApiResponse<PaginatedResponse<News>> =
+        await response.json();
+      return (
+        data.data || {
+          items: [],
+          pagination: {
+            page: 1,
+            limit: 20,
+            total: 0,
+            total_pages: 0,
+            has_next: false,
+            has_prev: false,
+          },
+        }
+      );
+    } catch (error) {
+      console.error("Error fetching filtered news:", error);
+      return {
         items: [],
         pagination: {
           page: 1,
@@ -206,8 +277,8 @@ export class NewsAPI {
           has_next: false,
           has_prev: false,
         },
-      }
-    );
+      };
+    }
   }
 
   // Start crawler

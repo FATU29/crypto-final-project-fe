@@ -61,6 +61,14 @@ export default function PriceChart({
       return;
     }
 
+    // Verify the message is for the current symbol
+    if (lastMessage.s && lastMessage.s.toUpperCase() !== symbol.toUpperCase()) {
+      console.warn(
+        `⚠️ [Chart] Ignoring message for different symbol: ${lastMessage.s} (current: ${symbol})`
+      );
+      return;
+    }
+
     const kline = lastMessage.k;
     if (!kline) return;
 
@@ -98,7 +106,7 @@ export default function PriceChart({
         console.warn("Chart update error:", error.message);
       }
     }
-  }, [lastMessage]);
+  }, [lastMessage, symbol]);
 
   // Fetch historical data from Binance REST API
   useEffect(() => {
@@ -107,11 +115,19 @@ export default function PriceChart({
       return;
     }
 
+    // Reset state when symbol or interval changes
+    setIsLoading(true);
+    setError(null);
+    setLastPrice(null);
+
+    // Clear existing chart data
+    if (candlestickSeriesRef.current && volumeSeriesRef.current) {
+      candlestickSeriesRef.current.setData([]);
+      volumeSeriesRef.current.setData([]);
+    }
+
     const fetchHistoricalData = async () => {
       try {
-        setIsLoading(true);
-        setError(null);
-
         const limit = 1000;
         const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
 

@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 # Multi-stage build for Next.js application
 
 # Stage 1: Dependencies
@@ -35,8 +36,9 @@ ENV NEXT_PUBLIC_AI_URL=${NEXT_PUBLIC_AI_URL}
 ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 
-# Build the application
-RUN npm run build
+# Build the application with network access for font downloads
+# Clear Next.js cache to ensure fresh build
+RUN rm -rf .next && npm run build
 
 # Stage 3: Runner
 FROM node:20-alpine AS runner
