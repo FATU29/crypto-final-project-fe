@@ -163,81 +163,159 @@ export default function ProfilePage() {
 
         {/* Upgrade Card */}
         {!isVip && (
-          <Card className="border-yellow-500/50">
+          <Card className="border-2 border-yellow-500/70 bg-linear-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-yellow-500" />
-                <CardTitle>Upgrade to VIP</CardTitle>
+                <div className="p-2 rounded-full bg-yellow-500/20">
+                  <Crown className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">Upgrade to VIP</CardTitle>
+                  <CardDescription className="text-base">
+                    Unlock premium features and AI-powered analysis
+                  </CardDescription>
+                </div>
               </div>
-              <CardDescription>
-                Unlock premium features and AI-powered analysis
-              </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="space-y-2">
-                <h4 className="font-medium">VIP Benefits:</h4>
-                <ul className="space-y-2 text-sm text-muted-foreground">
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
-                    <span>
-                      Access to AI-powered sentiment analysis for news articles
-                    </span>
+              <div className="space-y-3">
+                <h4 className="font-semibold text-base">VIP Benefits:</h4>
+                <ul className="space-y-2.5">
+                  <li className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-green-500 mt-0.5 text-lg">✓</span>
+                    <div>
+                      <p className="font-medium text-sm">
+                        AI Sentiment Analysis
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Real-time sentiment analysis from crypto news
+                      </p>
+                    </div>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
-                    <span>
-                      Advanced causal analysis for cryptocurrency trends
-                    </span>
+                  <li className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-green-500 mt-0.5 text-lg">✓</span>
+                    <div>
+                      <p className="font-medium text-sm">AI Price Prediction</p>
+                      <p className="text-xs text-muted-foreground">
+                        Price trend predictions based on news analysis
+                      </p>
+                    </div>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
-                    <span>Real-time AI insights on market movements</span>
+                  <li className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-green-500 mt-0.5 text-lg">✓</span>
+                    <div>
+                      <p className="font-medium text-sm">
+                        Advanced Causal Analysis
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Understand factors affecting crypto markets
+                      </p>
+                    </div>
                   </li>
-                  <li className="flex items-start gap-2">
-                    <span className="text-green-500 mt-0.5">✓</span>
-                    <span>Priority access to new AI features</span>
+                  <li className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-green-500 mt-0.5 text-lg">✓</span>
+                    <div>
+                      <p className="font-medium text-sm">
+                        Real-time AI Insights
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Get detailed insights on market movements
+                      </p>
+                    </div>
+                  </li>
+                  <li className="flex items-start gap-3 p-2 rounded-lg bg-white/50 dark:bg-black/20">
+                    <span className="text-green-500 mt-0.5 text-lg">✓</span>
+                    <div>
+                      <p className="font-medium text-sm">
+                        Priority Access to New Features
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        Experience the latest AI features first
+                      </p>
+                    </div>
                   </li>
                 </ul>
               </div>
-              <Button
-                onClick={handleUpgrade}
-                disabled={isUpgrading}
-                className="w-full bg-linear-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600"
-              >
-                {isUpgrading ? (
-                  <>
-                    <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                    Upgrading...
-                  </>
-                ) : (
-                  <>
-                    <Crown className="h-4 w-4 mr-2" />
-                    Upgrade to VIP
-                  </>
-                )}
-              </Button>
+              <div className="pt-2">
+                <Button
+                  onClick={handleUpgrade}
+                  disabled={isUpgrading}
+                  size="lg"
+                  className="w-full bg-linear-to-r from-yellow-500 to-amber-500 hover:from-yellow-600 hover:to-amber-600 text-white font-semibold shadow-lg hover:shadow-xl transition-all"
+                >
+                  {isUpgrading ? (
+                    <>
+                      <div className="mr-2 h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                      Upgrading...
+                    </>
+                  ) : (
+                    <>
+                      <Crown className="h-5 w-5 mr-2" />
+                      Upgrade to VIP Now
+                    </>
+                  )}
+                </Button>
+                <p className="text-xs text-center text-muted-foreground mt-2">
+                  Free during trial period
+                </p>
+              </div>
             </CardContent>
           </Card>
         )}
 
         {/* VIP Status Card */}
         {isVip && (
-          <Card className="border-yellow-500/50 bg-linear-to-br from-yellow-50/50 to-amber-50/50 dark:from-yellow-950/20 dark:to-amber-950/20">
+          <Card className="border-2 border-yellow-500/70 bg-linear-to-br from-yellow-50 to-amber-50 dark:from-yellow-950/30 dark:to-amber-950/30">
             <CardHeader>
               <div className="flex items-center gap-2">
-                <Crown className="h-5 w-5 text-yellow-500" />
-                <CardTitle>VIP Member</CardTitle>
+                <div className="p-2 rounded-full bg-yellow-500/20">
+                  <Crown className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-xl">VIP Member</CardTitle>
+                  <CardDescription className="text-base">
+                    You have access to all premium features
+                  </CardDescription>
+                </div>
               </div>
-              <CardDescription>
-                You have access to all premium features
-              </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Thank you for being a VIP member! You now have access to all
-                AI-powered analysis features including sentiment analysis,
-                causal analysis, and real-time AI insights.
-              </p>
+              <div className="space-y-3">
+                <p className="text-sm font-medium">
+                  Thank you for being a VIP member! 🎉
+                </p>
+                <p className="text-sm text-muted-foreground">
+                  You now have access to all AI-powered analysis features
+                  including sentiment analysis, causal analysis, and real-time
+                  AI insights.
+                </p>
+                <div className="flex flex-wrap gap-2 pt-2">
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-700 border-green-200"
+                  >
+                    ✓ Sentiment Analysis
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-700 border-green-200"
+                  >
+                    ✓ Price Prediction
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-700 border-green-200"
+                  >
+                    ✓ Causal Analysis
+                  </Badge>
+                  <Badge
+                    variant="outline"
+                    className="bg-green-50 text-green-700 border-green-200"
+                  >
+                    ✓ AI Insights
+                  </Badge>
+                </div>
+              </div>
             </CardContent>
           </Card>
         )}

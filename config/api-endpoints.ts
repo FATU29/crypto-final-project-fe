@@ -7,6 +7,7 @@ export const API_ENDPOINTS = {
     me: "/api/v1/auth/me",
     changePassword: "/api/v1/auth/change-password",
     upgradeAccount: "/api/v1/auth/upgrade-account",
+    googleCallback: "/api/v1/auth/google/callback",
   },
   users: {
     list: "/users",

@@ -19,7 +19,7 @@ interface ChartContainerProps {
 
 export function ChartContainer({ pair }: ChartContainerProps) {
   const [selectedTimeframe, setSelectedTimeframe] = useState<ChartTimeframe>(
-    CHART_TIMEFRAMES[3]
+    CHART_TIMEFRAMES[3],
   ); // Default to 1H
 
   return (
@@ -27,8 +27,13 @@ export function ChartContainer({ pair }: ChartContainerProps) {
       <CardHeader>
         <div className="flex items-center justify-between">
           <div>
-            <CardTitle>{pair.name} Price Chart</CardTitle>
-            <CardDescription>Real-time price data from Binance</CardDescription>
+            <CardTitle>
+              {pair.name} ({pair.symbol}) - Live Trading Chart
+            </CardTitle>
+            <CardDescription>
+              Real-time candlestick chart with volume data • Powered by Binance
+              WebSocket
+            </CardDescription>
           </div>
           <TimeframeSelector
             timeframes={CHART_TIMEFRAMES}

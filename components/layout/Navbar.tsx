@@ -20,6 +20,8 @@ import {
   Crown,
   User,
   LogOut,
+  Sparkles,
+  Grid3x3,
 } from "lucide-react";
 
 export function Navbar() {
@@ -34,10 +36,22 @@ export function Navbar() {
       description: "Real-time price charts (TradingView style)",
     },
     {
+      name: "Multi-Chart",
+      href: "/charts/multi",
+      icon: Grid3x3,
+      description: "Monitor up to 4 trading pairs simultaneously",
+    },
+    {
       name: "News",
       href: "/news",
       icon: Newspaper,
       description: "Multi-source news crawler with AI analysis",
+    },
+    {
+      name: "AI Prediction",
+      href: "/price-prediction",
+      icon: Sparkles,
+      description: "AI-powered price predictions based on news sentiment",
     },
   ];
 

@@ -9,6 +9,7 @@ import { config } from "@/config";
 
 interface AuthContextType extends AuthState {
   login: (credentials: LoginCredentials) => Promise<void>;
+  loginWithGoogle: (code: string) => Promise<void>;
   register: (data: RegisterData) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -91,6 +92,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const loginWithGoogle = async (code: string) => {
+    try {
+      setState((prev) => ({ ...prev, isLoading: true, error: null }));
+      const response = await authService.loginWithGoogle(code);
+
+      auth.setTokens(response.tokens);
+      auth.setUser(response.user);
+
+      setState({
+        user: response.user,
+        isAuthenticated: true,
+        isLoading: false,
+        error: null,
+      });
+
+      router.push(config.routes.authRedirect);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Google login failed";
+      setState((prev) => ({
+        ...prev,
+        isLoading: false,
+        error: message,
+      }));
+      throw error;
+    }
+  };
+
   const register = async (data: RegisterData) => {
     try {
       setState((prev) => ({ ...prev, isLoading: true, error: null }));
@@ -151,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         ...state,
         login,
+        loginWithGoogle,
         register,
         logout,
         refreshUser,

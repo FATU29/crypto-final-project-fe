@@ -11,7 +11,7 @@ import type {
 
 // Transform backend auth response to frontend format
 const transformAuthResponse = (
-  backendResponse: ApiResponse<BackendAuthResponse>
+  backendResponse: ApiResponse<BackendAuthResponse>,
 ): AuthResponse => {
   if (!backendResponse.success || !backendResponse.data) {
     throw new Error(backendResponse.message || "Authentication failed");
@@ -56,7 +56,21 @@ export const authService = {
   async login(credentials: LoginCredentials): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<BackendAuthResponse>>(
       API_ENDPOINTS.auth.login,
-      credentials
+      credentials,
+    );
+    return transformAuthResponse(response);
+  },
+
+  async loginWithGoogle(code: string): Promise<AuthResponse> {
+    // Get redirectUri from current origin to match the OAuth flow
+    const redirectUri =
+      typeof window !== "undefined"
+        ? `${window.location.origin}/google/callback`
+        : "http://localhost:3000/google/callback";
+
+    const response = await apiClient.post<ApiResponse<BackendAuthResponse>>(
+      API_ENDPOINTS.auth.googleCallback,
+      { code, redirectUri },
     );
     return transformAuthResponse(response);
   },
@@ -64,7 +78,7 @@ export const authService = {
   async register(data: RegisterData): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<BackendAuthResponse>>(
       API_ENDPOINTS.auth.register,
-      data
+      data,
     );
     return transformAuthResponse(response);
   },
@@ -75,7 +89,7 @@ export const authService = {
 
   async getCurrentUser(): Promise<User> {
     const response = await apiClient.get<ApiResponse<User>>(
-      API_ENDPOINTS.auth.me
+      API_ENDPOINTS.auth.me,
     );
     return transformUserProfile(response);
   },
@@ -83,7 +97,7 @@ export const authService = {
   async refreshToken(refreshToken: string): Promise<AuthResponse> {
     const response = await apiClient.post<ApiResponse<BackendAuthResponse>>(
       API_ENDPOINTS.auth.refresh,
-      { refreshToken }
+      { refreshToken },
     );
     return transformAuthResponse(response);
   },
@@ -95,14 +109,14 @@ export const authService = {
   }): Promise<void> {
     await apiClient.post<ApiResponse<void>>(
       API_ENDPOINTS.auth.changePassword,
-      data
+      data,
     );
   },
 
   async upgradeAccount(accountType: "VIP"): Promise<User> {
     const response = await apiClient.put<ApiResponse<User>>(
       API_ENDPOINTS.auth.upgradeAccount,
-      { accountType }
+      { accountType },
     );
     return transformUserProfile(response);
   },

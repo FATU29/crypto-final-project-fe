@@ -1,25 +1,41 @@
 "use client";
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, memo } from "react";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
 } from "lightweight-charts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { AlertCircle, Wifi, WifiOff } from "lucide-react";
+import {
+  AlertCircle,
+  Wifi,
+  WifiOff,
+  Info,
+  MousePointer2,
+  ZoomIn,
+  Move,
+} from "lucide-react";
 import { useBinanceWebSocket } from "@/hooks";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 export type PriceChartProps = {
   symbol: string;
   interval: string;
   height?: number;
+  onDisconnectReady?: (disconnectFn: () => void) => void;
 };
 
-export default function PriceChart({
+const PriceChart = memo(function PriceChart({
   symbol,
   interval,
   height = 500,
+  onDisconnectReady,
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -32,9 +48,21 @@ export default function PriceChart({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
+  const [hoverData, setHoverData] = useState<{
+    time: string;
+    open: number;
+    high: number;
+    low: number;
+    close: number;
+    volume: number;
+  } | null>(null);
 
   // Use WebSocket hook
-  const { isConnected: wsConnected, lastMessage } = useBinanceWebSocket({
+  const {
+    isConnected: wsConnected,
+    lastMessage,
+    disconnect,
+  } = useBinanceWebSocket({
     symbol,
     interval,
     enabled:
@@ -64,7 +92,7 @@ export default function PriceChart({
     // Verify the message is for the current symbol
     if (lastMessage.s && lastMessage.s.toUpperCase() !== symbol.toUpperCase()) {
       console.warn(
-        `⚠️ [Chart] Ignoring message for different symbol: ${lastMessage.s} (current: ${symbol})`
+        `⚠️ [Chart] Ignoring message for different symbol: ${lastMessage.s} (current: ${symbol})`,
       );
       return;
     }
@@ -107,6 +135,13 @@ export default function PriceChart({
       }
     }
   }, [lastMessage, symbol]);
+
+  // Expose disconnect function to parent component
+  useEffect(() => {
+    if (onDisconnectReady && disconnect) {
+      onDisconnectReady(disconnect);
+    }
+  }, [disconnect, onDisconnectReady]);
 
   // Fetch historical data from Binance REST API
   useEffect(() => {
@@ -171,7 +206,7 @@ export default function PriceChart({
       } catch (err) {
         console.error("❌ Error fetching historical data:", err);
         setError(
-          err instanceof Error ? err.message : "Failed to load chart data"
+          err instanceof Error ? err.message : "Failed to load chart data",
         );
         setIsLoading(false);
       }
@@ -180,14 +215,17 @@ export default function PriceChart({
     fetchHistoricalData();
   }, [symbol, interval]);
 
-  // Initialize chart
+  // Initialize chart - only once per symbol/interval
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
+    const containerWidth = chartContainerRef.current.clientWidth || 600;
+    const initialHeight = 500; // Use fixed initial height
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chart: any = createChart(chartContainerRef.current, {
-      width: chartContainerRef.current.clientWidth,
-      height: height,
+      width: containerWidth,
+      height: initialHeight,
       layout: {
         background: { color: "transparent" },
         textColor: "#9CA3AF",
@@ -237,6 +275,37 @@ export default function PriceChart({
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    // Subscribe to crosshair move for hover data
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    chart.subscribeCrosshairMove((param: any) => {
+      if (!param.time || !param.seriesData) {
+        setHoverData(null);
+        return;
+      }
+
+      const candleData = param.seriesData.get(candlestickSeries);
+      const volumeData = param.seriesData.get(volumeSeries);
+
+      if (candleData) {
+        const date = new Date(param.time * 1000);
+        setHoverData({
+          time: date.toLocaleString("en-US", {
+            month: "short",
+            day: "numeric",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }),
+          open: candleData.open,
+          high: candleData.high,
+          low: candleData.low,
+          close: candleData.close,
+          volume: volumeData?.value || 0,
+        });
+      }
+    });
+
     // Handle resize
     const handleResize = () => {
       if (chartContainerRef.current && chartRef.current) {
@@ -254,6 +323,13 @@ export default function PriceChart({
         chartRef.current.remove();
       }
     };
+  }, [symbol, interval]); // Only re-initialize when symbol or interval changes
+
+  // Handle height changes separately without re-initializing the chart
+  useEffect(() => {
+    if (chartRef.current) {
+      chartRef.current.applyOptions({ height });
+    }
   }, [height]);
 
   return (
@@ -265,33 +341,96 @@ export default function PriceChart({
         </Alert>
       )}
 
-      <div className="flex items-center justify-between px-2">
-        <div className="flex items-center gap-3">
-          <div className="text-sm text-muted-foreground">
-            {symbol} • {interval}
+      <div className="flex items-center justify-between px-2 py-1 bg-muted/30 rounded-md">
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2">
+            <div className="text-sm font-medium">{symbol}</div>
+            <div className="text-xs text-muted-foreground px-2 py-0.5 bg-muted rounded">
+              {interval}
+            </div>
           </div>
           {wsConnected ? (
-            <div className="flex items-center gap-1 text-xs text-green-500">
-              <Wifi className="h-3 w-3" />
-              <span>Live</span>
+            <div className="flex items-center gap-1.5 text-xs font-medium text-green-500">
+              <Wifi className="h-3.5 w-3.5" />
+              <span>Live Updates</span>
             </div>
           ) : (
-            <div className="flex items-center gap-1 text-xs text-gray-400">
-              <WifiOff className="h-3 w-3" />
+            <div className="flex items-center gap-1.5 text-xs font-medium text-orange-500">
+              <WifiOff className="h-3.5 w-3.5" />
               <span>Connecting...</span>
             </div>
           )}
+          <div className="text-xs text-muted-foreground">
+            Binance Market Data
+          </div>
         </div>
         {lastPrice && (
-          <div className="text-lg font-bold">
-            $
-            {lastPrice.toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Last Price:</span>
+            <div className="text-lg font-bold tabular-nums">
+              $
+              {lastPrice.toLocaleString(undefined, {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}
+            </div>
           </div>
         )}
       </div>
+
+      {/* Hover Data Panel */}
+      {hoverData && (
+        <div className="px-2 py-2 bg-muted/50 rounded-md border border-border">
+          <div className="flex items-center justify-between gap-6">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+              <span className="font-medium">Time:</span>
+              <span>{hoverData.time}</span>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">O:</span>
+                <span className="font-mono font-medium">
+                  ${hoverData.open.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">H:</span>
+                <span className="font-mono font-medium text-green-500">
+                  ${hoverData.high.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">L:</span>
+                <span className="font-mono font-medium text-red-500">
+                  ${hoverData.low.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">C:</span>
+                <span
+                  className={`font-mono font-medium ${
+                    hoverData.close >= hoverData.open
+                      ? "text-green-500"
+                      : "text-red-500"
+                  }`}
+                >
+                  ${hoverData.close.toFixed(2)}
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-muted-foreground">Vol:</span>
+                <span className="font-mono font-medium">
+                  {hoverData.volume >= 1000000
+                    ? `${(hoverData.volume / 1000000).toFixed(2)}M`
+                    : hoverData.volume >= 1000
+                      ? `${(hoverData.volume / 1000).toFixed(2)}K`
+                      : hoverData.volume.toFixed(2)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="relative">
         {isLoading && (
@@ -306,6 +445,122 @@ export default function PriceChart({
         )}
         <div ref={chartContainerRef} className="w-full" />
       </div>
+
+      {/* Chart Legend & Instructions */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+        {/* Legend */}
+        <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <Info className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-semibold">Chart Legend</h4>
+          </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-3 bg-green-500 rounded"></div>
+              <span className="text-muted-foreground">Green Candle:</span>
+              <span className="font-medium">Price increased (Bullish)</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-3 bg-red-500 rounded"></div>
+              <span className="text-muted-foreground">Red Candle:</span>
+              <span className="font-medium">Price decreased (Bearish)</span>
+            </div>
+            <div className="flex items-center gap-2 text-xs">
+              <div className="w-3 h-6 bg-green-500/50 rounded-sm"></div>
+              <span className="text-muted-foreground">Volume Bars:</span>
+              <span className="font-medium">Trading volume (bottom)</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Instructions */}
+        <div className="bg-muted/30 rounded-lg p-3 border border-border/50">
+          <div className="flex items-center gap-2 mb-2">
+            <MousePointer2 className="h-4 w-4 text-primary" />
+            <h4 className="text-sm font-semibold">How to Use</h4>
+          </div>
+          <div className="space-y-1.5">
+            <TooltipProvider>
+              <div className="flex items-center gap-2 text-xs">
+                <Move className="h-3 w-3 text-muted-foreground" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-medium cursor-help underline decoration-dotted">
+                      Hover over candles
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>View detailed OHLCV data for each time period</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="text-muted-foreground">to see details</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <ZoomIn className="h-3 w-3 text-muted-foreground" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-medium cursor-help underline decoration-dotted">
+                      Scroll to zoom
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Use mouse wheel to zoom in/out on the chart</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="text-muted-foreground">in/out on chart</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <MousePointer2 className="h-3 w-3 text-muted-foreground" />
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <span className="font-medium cursor-help underline decoration-dotted">
+                      Click & drag
+                    </span>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Click and drag to pan across time periods</p>
+                  </TooltipContent>
+                </Tooltip>
+                <span className="text-muted-foreground">to navigate timeline</span>
+              </div>
+            </TooltipProvider>
+          </div>
+        </div>
+      </div>
+
+      {/* OHLCV Explanation */}
+      <div className="bg-primary/5 rounded-lg p-3 border border-primary/20 mt-3">
+        <div className="flex items-start gap-3">
+          <Info className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
+          <div className="space-y-1">
+            <p className="text-xs font-medium">Understanding Candlestick Data:</p>
+            <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
+              <div>
+                <span className="font-semibold text-primary">O (Open):</span>
+                <span className="text-muted-foreground ml-1">Starting price</span>
+              </div>
+              <div>
+                <span className="font-semibold text-green-500">H (High):</span>
+                <span className="text-muted-foreground ml-1">Highest price</span>
+              </div>
+              <div>
+                <span className="font-semibold text-red-500">L (Low):</span>
+                <span className="text-muted-foreground ml-1">Lowest price</span>
+              </div>
+              <div>
+                <span className="font-semibold text-primary">C (Close):</span>
+                <span className="text-muted-foreground ml-1">Ending price</span>
+              </div>
+              <div>
+                <span className="font-semibold text-primary">Vol (Volume):</span>
+                <span className="text-muted-foreground ml-1">Trade amount</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
-}
+});
+
+export default PriceChart;

@@ -1,19 +1,9 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/lib/auth";
 import { Navbar } from "@/components/layout";
 import { Toaster } from "@/components/ui/sonner";
-
-const geistSans = Geist({
-  variable: "--font-geist-sans",
-  subsets: ["latin"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
+import ChatBubbleButtonWrapper from "@/components/chat/ChatBubbleButtonWrapper";
 
 export const metadata: Metadata = {
   title: "Crypto Trading Platform",
@@ -34,7 +24,7 @@ export default function RootLayout({
         // (incognito without extensions) and the warning disappears, remove
         // this flag.
         suppressHydrationWarning
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className="antialiased"
       >
         <AuthProvider>
           <div className="flex min-h-screen flex-col">
@@ -42,6 +32,7 @@ export default function RootLayout({
             <main className="flex-1">{children}</main>
           </div>
           <Toaster />
+          <ChatBubbleButtonWrapper />
         </AuthProvider>
       </body>
     </html>

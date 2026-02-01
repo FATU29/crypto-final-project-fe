@@ -5,6 +5,8 @@ export interface TradingPair {
   name: string;
   price?: number;
   change24h?: number;
+  volume24h?: number;
+  marketCap?: number;
 }
 
 export interface NewsArticle {
