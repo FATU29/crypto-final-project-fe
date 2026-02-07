@@ -4,4 +4,7 @@ export * from "./use-debounce";
 export * from "./use-binance-websocket";
 export * from "./use-backend-price";
 export * from "./use-news";
+export * from "./use-chart-news-markers";
 export * from "./useAiPricePrediction";
+export * from "./use-prediction-line";
+export * from "./use-live-prediction";

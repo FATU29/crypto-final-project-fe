@@ -7,8 +7,7 @@ import {
 import { useAuth } from "@/lib/auth/AuthContext";
 import { auth } from "@/lib/auth/utils";
 
-const DEFAULT_TIMEOUT = 50; // seconds (must be < Gateway timeout of 60s)
-const MIN_POLL_INTERVAL = 5; // minimum seconds between polls
+const POLL_INTERVAL = 30; // seconds between polls
 const GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
 
 interface UseAiPricePredictionOptions {
@@ -41,15 +40,16 @@ export function useAiPricePrediction({
   const [isPolling, setIsPolling] = useState(false);
   const [nextPollIn, setNextPollIn] = useState(0);
 
-  const pollingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const pollIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const countdownIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const lastPredictionTimeRef = useRef<string | undefined>(undefined);
 
   // Cleanup function
   const cleanup = useCallback(() => {
-    if (pollingTimeoutRef.current) {
-      clearTimeout(pollingTimeoutRef.current);
-      pollingTimeoutRef.current = null;
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
     }
     if (countdownIntervalRef.current) {
       clearInterval(countdownIntervalRef.current);
@@ -61,168 +61,123 @@ export function useAiPricePrediction({
     }
   }, []);
 
-  // Fetch prediction from API
-  const fetchPrediction = useCallback(
-    async (lastPredictionTime?: string): Promise<void> => {
-      if (!isVipUser) {
-        setError("VIP account required for AI predictions");
-        return;
-      }
-
-      if (!symbol) {
-        setError("Symbol is required");
-        return;
-      }
-
-      // Cancel previous request
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-
-      // Create new abort controller
-      abortControllerRef.current = new AbortController();
-
-      try {
-        setIsLoading(true);
-        setError(null);
-        setIsPolling(true);
-
-        const requestBody: LongPollingPredictionRequest = {
-          symbol: symbol.toUpperCase(),
-          timeout: DEFAULT_TIMEOUT,
-        };
-
-        if (lastPredictionTime) {
-          requestBody.last_prediction_time = lastPredictionTime;
-        }
-
-        // Get token from localStorage
-        const token = auth.getToken();
-        if (!token) {
-          throw new Error("Please login to access AI predictions");
-        }
-
-        const response = await fetch(
-          `${GATEWAY_URL}/api/v1/ai/predict-price-poll`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify(requestBody),
-            signal: abortControllerRef.current.signal,
-          }
-        );
-
-        if (!response.ok) {
-          if (response.status === 403) {
-            throw new Error("VIP account required for AI predictions");
-          }
-          if (response.status === 401) {
-            throw new Error("Please login to access AI predictions");
-          }
-          throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-        }
-
-        const data: LongPollingPredictionResponse = await response.json();
-
-        if (data.success && data.prediction) {
-          setPrediction(data.prediction);
-          setError(null);
-
-          // Schedule next poll if auto-refresh enabled
-          if (autoRefresh && enabled) {
-            const nextPollDelay = Math.max(
-              data.next_poll_after * 1000,
-              MIN_POLL_INTERVAL * 1000
-            );
-
-            // Start countdown
-            let secondsLeft = data.next_poll_after;
-            setNextPollIn(secondsLeft);
-
-            countdownIntervalRef.current = setInterval(() => {
-              secondsLeft--;
-              setNextPollIn(Math.max(0, secondsLeft));
-
-              if (secondsLeft <= 0 && countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-                countdownIntervalRef.current = null;
-              }
-            }, 1000);
-
-            // Schedule next poll
-            pollingTimeoutRef.current = setTimeout(() => {
-              fetchPrediction(data.prediction?.analyzed_at);
-            }, nextPollDelay);
-          }
-        } else if (!data.has_new_data && prediction) {
-          // No new data, keep existing prediction
-          setError(null);
-
-          // Schedule next poll
-          if (autoRefresh && enabled) {
-            const nextPollDelay = Math.max(
-              data.next_poll_after * 1000,
-              MIN_POLL_INTERVAL * 1000
-            );
-
-            let secondsLeft = data.next_poll_after;
-            setNextPollIn(secondsLeft);
-
-            countdownIntervalRef.current = setInterval(() => {
-              secondsLeft--;
-              setNextPollIn(Math.max(0, secondsLeft));
-
-              if (secondsLeft <= 0 && countdownIntervalRef.current) {
-                clearInterval(countdownIntervalRef.current);
-                countdownIntervalRef.current = null;
-              }
-            }, 1000);
-
-            pollingTimeoutRef.current = setTimeout(() => {
-              fetchPrediction(prediction.analyzed_at);
-            }, nextPollDelay);
-          }
-        }
-      } catch (err) {
-        if (err instanceof Error) {
-          if (err.name === "AbortError") {
-            // Request was cancelled, ignore
-            return;
-          }
-          setError(err.message);
-        } else {
-          setError("Failed to fetch prediction");
-        }
-        console.error("Error fetching AI prediction:", err);
-      } finally {
-        setIsLoading(false);
-        setIsPolling(false);
-      }
-    },
-    [symbol, isVipUser, autoRefresh, enabled, prediction]
-  );
-
-  // Manual refresh
-  const refresh = useCallback(async () => {
-    cleanup();
-    await fetchPrediction();
-  }, [cleanup, fetchPrediction]);
-
-  // Initial fetch and auto-refresh
-  useEffect(() => {
-    if (!enabled || !isVipUser || !symbol) {
+  // Fetch prediction from API (fast DB-only call)
+  const fetchPrediction = useCallback(async (): Promise<void> => {
+    if (!isVipUser) {
+      setError("VIP account required for AI predictions");
       return;
     }
 
+    if (!symbol) {
+      setError("Symbol is required");
+      return;
+    }
+
+    // Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+
+    try {
+      setIsLoading(true);
+      setError(null);
+      setIsPolling(true);
+
+      const requestBody: LongPollingPredictionRequest = {
+        symbol: symbol.toUpperCase(),
+        timeout: 10,
+      };
+
+      if (lastPredictionTimeRef.current) {
+        requestBody.last_prediction_time = lastPredictionTimeRef.current;
+      }
+
+      const token = auth.getToken();
+      if (!token) {
+        throw new Error("Please login to access AI predictions");
+      }
+
+      const response = await fetch(
+        `${GATEWAY_URL}/api/v1/ai/predict-price-poll`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(requestBody),
+          signal: abortControllerRef.current.signal,
+        }
+      );
+
+      if (!response.ok) {
+        if (response.status === 403) {
+          throw new Error("VIP account required for AI predictions");
+        }
+        if (response.status === 401) {
+          throw new Error("Please login to access AI predictions");
+        }
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const data: LongPollingPredictionResponse = await response.json();
+
+      if (data.success && data.prediction) {
+        setPrediction(data.prediction);
+        setError(null);
+
+        if (data.has_new_data && data.prediction?.analyzed_at) {
+          lastPredictionTimeRef.current = data.prediction.analyzed_at;
+        }
+      }
+    } catch (err) {
+      if (err instanceof Error) {
+        if (err.name === "AbortError") return;
+        setError(err.message);
+      } else {
+        setError("Failed to fetch prediction");
+      }
+      console.error("Error fetching AI prediction:", err);
+    } finally {
+      setIsLoading(false);
+      setIsPolling(false);
+    }
+  }, [symbol, isVipUser]);
+
+  // Manual refresh
+  const refresh = useCallback(async () => {
+    lastPredictionTimeRef.current = undefined;
+    await fetchPrediction();
+  }, [fetchPrediction]);
+
+  // Initial fetch + auto-refresh interval
+  useEffect(() => {
+    if (!enabled || !isVipUser || !symbol) return;
+
+    // Initial fetch
     fetchPrediction();
+
+    if (!autoRefresh) return;
+
+    // Simple interval polling every 30s
+    pollIntervalRef.current = setInterval(() => {
+      fetchPrediction();
+    }, POLL_INTERVAL * 1000);
+
+    // Countdown timer for UI
+    let secondsLeft = POLL_INTERVAL;
+    setNextPollIn(secondsLeft);
+    countdownIntervalRef.current = setInterval(() => {
+      secondsLeft--;
+      if (secondsLeft <= 0) secondsLeft = POLL_INTERVAL;
+      setNextPollIn(secondsLeft);
+    }, 1000);
 
     return () => {
       cleanup();
     };
-  }, [symbol, enabled, isVipUser]); // Only re-fetch when these change
+  }, [symbol, enabled, isVipUser]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Cleanup on unmount
   useEffect(() => {

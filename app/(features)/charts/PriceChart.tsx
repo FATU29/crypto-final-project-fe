@@ -1,10 +1,12 @@
 "use client";
 
-import React, { useEffect, useRef, useState, memo } from "react";
+import React, { useEffect, useRef, useState, useCallback, memo } from "react";
 import {
   createChart,
   CandlestickSeries,
   HistogramSeries,
+  LineSeries,
+  createSeriesMarkers,
 } from "lightweight-charts";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -23,11 +25,29 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  calculateMA,
+  calculateEMA,
+  INDICATOR_PRESETS,
+  IndicatorKey,
+  CandleData,
+} from "@/lib/utils/indicators";
+import type { PredictionLinePoint } from "@/types/ai-prediction";
+
+export type NewsMarker = {
+  id: string;
+  title: string;
+  time: number; // unix timestamp in seconds
+  sentiment?: "positive" | "negative" | "neutral";
+};
 
 export type PriceChartProps = {
   symbol: string;
   interval: string;
   height?: number;
+  activeIndicators?: IndicatorKey[];
+  newsMarkers?: NewsMarker[];
+  predictionLine?: PredictionLinePoint[];
   onDisconnectReady?: (disconnectFn: () => void) => void;
 };
 
@@ -35,6 +55,9 @@ const PriceChart = memo(function PriceChart({
   symbol,
   interval,
   height = 500,
+  activeIndicators = [],
+  newsMarkers = [],
+  predictionLine = [],
   onDisconnectReady,
 }: PriceChartProps) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -44,6 +67,14 @@ const PriceChart = memo(function PriceChart({
   const candlestickSeriesRef = useRef<any>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const volumeSeriesRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const indicatorSeriesRef = useRef<Map<string, any>>(new Map());
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const markersPluginRef = useRef<any>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const predictionSeriesRef = useRef<any>(null);
+  const candleDataRef = useRef<CandleData[]>([]);
+  const newsMarkersRef = useRef<NewsMarker[]>([]);
 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -56,6 +87,16 @@ const PriceChart = memo(function PriceChart({
     close: number;
     volume: number;
   } | null>(null);
+  const [newsTooltip, setNewsTooltip] = useState<{
+    x: number;
+    y: number;
+    marker: NewsMarker;
+  } | null>(null);
+
+  // Keep ref in sync with prop
+  useEffect(() => {
+    newsMarkersRef.current = newsMarkers;
+  }, [newsMarkers]);
 
   // Use WebSocket hook
   const {
@@ -79,6 +120,108 @@ const PriceChart = memo(function PriceChart({
     },
   });
 
+  // Recalculate and apply indicator data
+  const applyIndicators = useCallback(() => {
+    if (!chartRef.current || !candlestickSeriesRef.current) return;
+
+    const candles = candleDataRef.current;
+    const chart = chartRef.current;
+
+    // Remove indicators that are no longer active
+    indicatorSeriesRef.current.forEach((series, key) => {
+      if (!activeIndicators.includes(key as IndicatorKey)) {
+        try {
+          chart.removeSeries(series);
+        } catch {
+          // ignore
+        }
+        indicatorSeriesRef.current.delete(key);
+      }
+    });
+
+    // Add or update active indicators
+    activeIndicators.forEach((key) => {
+      const config = INDICATOR_PRESETS[key];
+      if (!config) return;
+
+      const data =
+        config.type === "MA"
+          ? calculateMA(candles, config.period)
+          : calculateEMA(candles, config.period);
+
+      if (data.length === 0) return;
+
+      let series = indicatorSeriesRef.current.get(key);
+
+      if (!series) {
+        series = chart.addSeries(LineSeries, {
+          color: config.color,
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          crosshairMarkerVisible: false,
+          title: config.label,
+        });
+        indicatorSeriesRef.current.set(key, series);
+      }
+
+      series.setData(data);
+    });
+  }, [activeIndicators]);
+
+  // Apply news markers to the chart
+  const applyNewsMarkers = useCallback(() => {
+    if (!candlestickSeriesRef.current) return;
+
+    // Clean up old markers plugin
+    if (markersPluginRef.current) {
+      try {
+        markersPluginRef.current.setMarkers([]);
+      } catch {
+        // ignore
+      }
+    }
+
+    if (newsMarkers.length === 0) return;
+
+    const markers = newsMarkers
+      .map((news) => {
+        const color =
+          news.sentiment === "positive"
+            ? "#22C55E"
+            : news.sentiment === "negative"
+              ? "#EF4444"
+              : "#3B82F6";
+
+        const shape =
+          news.sentiment === "positive"
+            ? ("arrowUp" as const)
+            : news.sentiment === "negative"
+              ? ("arrowDown" as const)
+              : ("circle" as const);
+
+        return {
+          time: news.time,
+          position: "aboveBar" as const,
+          color,
+          shape,
+          text:
+            news.title.length > 30 ? news.title.slice(0, 30) + "…" : news.title,
+          id: news.id,
+        };
+      })
+      .sort((a, b) => a.time - b.time);
+
+    try {
+      markersPluginRef.current = createSeriesMarkers(
+        candlestickSeriesRef.current,
+        markers,
+      );
+    } catch (err) {
+      console.warn("Failed to set news markers:", err);
+    }
+  }, [newsMarkers]);
+
   // Update chart when WebSocket receives new data
   useEffect(() => {
     if (
@@ -100,7 +243,7 @@ const PriceChart = memo(function PriceChart({
     const kline = lastMessage.k;
     if (!kline) return;
 
-    const candle = {
+    const candle: CandleData = {
       time: Math.floor(kline.t / 1000),
       open: parseFloat(kline.o),
       high: parseFloat(kline.h),
@@ -118,15 +261,25 @@ const PriceChart = memo(function PriceChart({
     };
 
     try {
-      // Try to update the chart with new data
-      // If the data is older than existing data, this will throw an error
-      // which we catch and ignore
       candlestickSeriesRef.current.update(candle);
       volumeSeriesRef.current.update(volume);
       setLastPrice(candle.close);
+
+      // Update candle data ref for indicator recalculation
+      const lastIdx = candleDataRef.current.findIndex(
+        (c) => c.time === candle.time,
+      );
+      if (lastIdx >= 0) {
+        candleDataRef.current[lastIdx] = candle;
+      } else {
+        candleDataRef.current.push(candle);
+      }
+
+      // Re-apply indicators with updated data
+      if (activeIndicators.length > 0) {
+        applyIndicators();
+      }
     } catch (error) {
-      // Silently ignore "Cannot update oldest data" errors
-      // This happens when WebSocket sends data that's already in the chart
       if (
         error instanceof Error &&
         !error.message.includes("Cannot update oldest data")
@@ -134,7 +287,7 @@ const PriceChart = memo(function PriceChart({
         console.warn("Chart update error:", error.message);
       }
     }
-  }, [lastMessage, symbol]);
+  }, [lastMessage, symbol, activeIndicators, applyIndicators]);
 
   // Expose disconnect function to parent component
   useEffect(() => {
@@ -154,6 +307,7 @@ const PriceChart = memo(function PriceChart({
     setIsLoading(true);
     setError(null);
     setLastPrice(null);
+    candleDataRef.current = [];
 
     // Clear existing chart data
     if (candlestickSeriesRef.current && volumeSeriesRef.current) {
@@ -175,7 +329,7 @@ const PriceChart = memo(function PriceChart({
 
         const data = await response.json();
 
-        const candles = data.map((d: (number | string)[]) => ({
+        const candles: CandleData[] = data.map((d: (number | string)[]) => ({
           time: Math.floor(Number(d[0]) / 1000),
           open: Number(d[1]),
           high: Number(d[2]),
@@ -195,6 +349,7 @@ const PriceChart = memo(function PriceChart({
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           candlestickSeriesRef.current.setData(candles);
           volumeSeriesRef.current.setData(volumes);
+          candleDataRef.current = candles;
 
           if (candles.length > 0) {
             setLastPrice(candles[candles.length - 1].close);
@@ -215,12 +370,65 @@ const PriceChart = memo(function PriceChart({
     fetchHistoricalData();
   }, [symbol, interval]);
 
+  // Apply indicators when data loads or active indicators change
+  useEffect(() => {
+    if (!isLoading && candleDataRef.current.length > 0) {
+      applyIndicators();
+    }
+  }, [isLoading, activeIndicators, applyIndicators]);
+
+  // Apply news markers when data loads or markers change
+  useEffect(() => {
+    if (!isLoading && candlestickSeriesRef.current) {
+      applyNewsMarkers();
+    }
+  }, [isLoading, newsMarkers, applyNewsMarkers]);
+
+  // --- Prediction Line ---
+  const applyPredictionLine = useCallback(() => {
+    if (!chartRef.current) return;
+
+    // Remove existing prediction series
+    if (predictionSeriesRef.current) {
+      try {
+        chartRef.current.removeSeries(predictionSeriesRef.current);
+      } catch {
+        /* ignore */
+      }
+      predictionSeriesRef.current = null;
+    }
+
+    if (predictionLine.length === 0) return;
+
+    const series = chartRef.current.addSeries(LineSeries, {
+      color: "#F59E0B",
+      lineWidth: 2,
+      lineStyle: 2, // Dashed
+      priceLineVisible: false,
+      lastValueVisible: true,
+      crosshairMarkerVisible: true,
+      title: "AI Prediction",
+    });
+
+    series.setData(
+      predictionLine.map((p) => ({ time: p.time, value: p.value })),
+    );
+
+    predictionSeriesRef.current = series;
+  }, [predictionLine]);
+
+  useEffect(() => {
+    if (!isLoading && chartRef.current) {
+      applyPredictionLine();
+    }
+  }, [isLoading, predictionLine, applyPredictionLine]);
+
   // Initialize chart - only once per symbol/interval
   useEffect(() => {
     if (!chartContainerRef.current) return;
 
     const containerWidth = chartContainerRef.current.clientWidth || 600;
-    const initialHeight = 500; // Use fixed initial height
+    const initialHeight = 500;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const chart: any = createChart(chartContainerRef.current, {
@@ -235,7 +443,7 @@ const PriceChart = memo(function PriceChart({
         horzLines: { color: "rgba(42, 46, 57, 0.3)" },
       },
       crosshair: {
-        mode: 0, // Normal mode
+        mode: 0,
       },
       rightPriceScale: {
         borderColor: "rgba(42, 46, 57, 0.5)",
@@ -247,7 +455,6 @@ const PriceChart = memo(function PriceChart({
       },
     });
 
-    // Use imported series definitions for v5 API
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
       upColor: "#22C55E",
       downColor: "#EF4444",
@@ -275,11 +482,16 @@ const PriceChart = memo(function PriceChart({
     candlestickSeriesRef.current = candlestickSeries;
     volumeSeriesRef.current = volumeSeries;
 
+    // Clear indicator refs on chart re-init
+    indicatorSeriesRef.current.clear();
+    markersPluginRef.current = null;
+
     // Subscribe to crosshair move for hover data
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     chart.subscribeCrosshairMove((param: any) => {
       if (!param.time || !param.seriesData) {
         setHoverData(null);
+        setNewsTooltip(null);
         return;
       }
 
@@ -304,6 +516,25 @@ const PriceChart = memo(function PriceChart({
           volume: volumeData?.value || 0,
         });
       }
+
+      // Check if hovering near a news marker
+      if (newsMarkersRef.current.length > 0 && param.point) {
+        const hoveredTime = param.time as number;
+        const matchedMarker = newsMarkersRef.current.find(
+          (m) => m.time === hoveredTime,
+        );
+        if (matchedMarker) {
+          setNewsTooltip({
+            x: param.point.x,
+            y: param.point.y,
+            marker: matchedMarker,
+          });
+        } else {
+          setNewsTooltip(null);
+        }
+      } else {
+        setNewsTooltip(null);
+      }
     });
 
     // Handle resize
@@ -319,11 +550,14 @@ const PriceChart = memo(function PriceChart({
 
     return () => {
       window.removeEventListener("resize", handleResize);
+      indicatorSeriesRef.current.clear();
+      markersPluginRef.current = null;
+      predictionSeriesRef.current = null;
       if (chartRef.current) {
         chartRef.current.remove();
       }
     };
-  }, [symbol, interval]); // Only re-initialize when symbol or interval changes
+  }, [symbol, interval]);
 
   // Handle height changes separately without re-initializing the chart
   useEffect(() => {
@@ -377,6 +611,36 @@ const PriceChart = memo(function PriceChart({
           </div>
         )}
       </div>
+
+      {/* Active Indicators Legend */}
+      {(activeIndicators.length > 0 || predictionLine.length > 0) && (
+        <div className="flex items-center gap-3 px-2 py-1 bg-muted/20 rounded-md">
+          <span className="text-xs text-muted-foreground font-medium">
+            Indicators:
+          </span>
+          {activeIndicators.map((key) => {
+            const config = INDICATOR_PRESETS[key];
+            return (
+              <div key={key} className="flex items-center gap-1.5 text-xs">
+                <div
+                  className="h-0.5 w-4 rounded"
+                  style={{ backgroundColor: config.color }}
+                />
+                <span className="font-medium">{config.label}</span>
+              </div>
+            );
+          })}
+          {predictionLine.length > 0 && (
+            <div className="flex items-center gap-1.5 text-xs">
+              <div
+                className="h-0.5 w-4 rounded"
+                style={{ backgroundColor: "#F59E0B", borderStyle: "dashed" }}
+              />
+              <span className="font-medium text-amber-500">AI Prediction</span>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Hover Data Panel */}
       {hoverData && (
@@ -444,6 +708,53 @@ const PriceChart = memo(function PriceChart({
           </div>
         )}
         <div ref={chartContainerRef} className="w-full" />
+
+        {/* News Marker Tooltip */}
+        {newsTooltip && (
+          <div
+            className="absolute z-20 pointer-events-none"
+            style={{
+              left: Math.min(
+                newsTooltip.x,
+                (chartContainerRef.current?.clientWidth || 600) - 280,
+              ),
+              top: Math.max(newsTooltip.y - 90, 0),
+            }}
+          >
+            <div className="bg-popover border border-border rounded-lg shadow-lg p-3 max-w-65">
+              <div className="flex items-center gap-2 mb-1.5">
+                <span
+                  className={`inline-block h-2.5 w-2.5 rounded-full shrink-0 ${
+                    newsTooltip.marker.sentiment === "positive"
+                      ? "bg-green-500"
+                      : newsTooltip.marker.sentiment === "negative"
+                        ? "bg-red-500"
+                        : "bg-blue-500"
+                  }`}
+                />
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                  {newsTooltip.marker.sentiment || "neutral"} news
+                </span>
+              </div>
+              <p className="text-xs font-medium leading-snug line-clamp-3">
+                {newsTooltip.marker.title}
+              </p>
+              <p className="text-[10px] text-muted-foreground mt-1.5">
+                {new Date(newsTooltip.marker.time * 1000).toLocaleString(
+                  "en-US",
+                  {
+                    month: "short",
+                    day: "numeric",
+                    year: "numeric",
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    hour12: false,
+                  },
+                )}
+              </p>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Chart Legend & Instructions */}
@@ -470,6 +781,37 @@ const PriceChart = memo(function PriceChart({
               <span className="text-muted-foreground">Volume Bars:</span>
               <span className="font-medium">Trading volume (bottom)</span>
             </div>
+            {predictionLine.length > 0 && (
+              <div className="flex items-center gap-2 text-xs">
+                <div
+                  className="w-4 h-0.5 bg-amber-500 rounded"
+                  style={{ borderTop: "2px dashed #F59E0B" }}
+                ></div>
+                <span className="text-muted-foreground">
+                  Amber Dashed Line:
+                </span>
+                <span className="font-medium">AI Price Prediction (VIP)</span>
+              </div>
+            )}
+            {newsMarkers.length > 0 && (
+              <>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                  <span className="text-muted-foreground">Green Marker:</span>
+                  <span className="font-medium">Positive news event</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                  <span className="text-muted-foreground">Red Marker:</span>
+                  <span className="font-medium">Negative news event</span>
+                </div>
+                <div className="flex items-center gap-2 text-xs">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                  <span className="text-muted-foreground">Blue Marker:</span>
+                  <span className="font-medium">Neutral news event</span>
+                </div>
+              </>
+            )}
           </div>
         </div>
 
@@ -521,7 +863,9 @@ const PriceChart = memo(function PriceChart({
                     <p>Click and drag to pan across time periods</p>
                   </TooltipContent>
                 </Tooltip>
-                <span className="text-muted-foreground">to navigate timeline</span>
+                <span className="text-muted-foreground">
+                  to navigate timeline
+                </span>
               </div>
             </TooltipProvider>
           </div>
@@ -533,15 +877,21 @@ const PriceChart = memo(function PriceChart({
         <div className="flex items-start gap-3">
           <Info className="h-4 w-4 text-primary mt-0.5 flex-shrink-0" />
           <div className="space-y-1">
-            <p className="text-xs font-medium">Understanding Candlestick Data:</p>
+            <p className="text-xs font-medium">
+              Understanding Candlestick Data:
+            </p>
             <div className="grid grid-cols-2 md:grid-cols-5 gap-3 text-xs">
               <div>
                 <span className="font-semibold text-primary">O (Open):</span>
-                <span className="text-muted-foreground ml-1">Starting price</span>
+                <span className="text-muted-foreground ml-1">
+                  Starting price
+                </span>
               </div>
               <div>
                 <span className="font-semibold text-green-500">H (High):</span>
-                <span className="text-muted-foreground ml-1">Highest price</span>
+                <span className="text-muted-foreground ml-1">
+                  Highest price
+                </span>
               </div>
               <div>
                 <span className="font-semibold text-red-500">L (Low):</span>
@@ -552,7 +902,9 @@ const PriceChart = memo(function PriceChart({
                 <span className="text-muted-foreground ml-1">Ending price</span>
               </div>
               <div>
-                <span className="font-semibold text-primary">Vol (Volume):</span>
+                <span className="font-semibold text-primary">
+                  Vol (Volume):
+                </span>
                 <span className="text-muted-foreground ml-1">Trade amount</span>
               </div>
             </div>

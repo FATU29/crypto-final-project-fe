@@ -33,3 +33,34 @@ export interface LongPollingPredictionRequest {
   last_prediction_time?: string; // ISO 8601 datetime
   timeout?: number; // 30-50 seconds (must be < Gateway timeout of 60s)
 }
+
+// ============================================
+// Prediction Line (Chart Overlay) Types
+// ============================================
+
+export interface PredictionLinePoint {
+  time: number; // unix timestamp in seconds
+  value: number; // predicted price
+}
+
+export interface PredictionLineRequest {
+  symbol: string;
+  interval: string; // 1m, 5m, 15m, 1h, 4h, 1d, 1w
+  periods?: number; // 4-100, default 24
+  news_limit?: number; // 1-50, default 10
+}
+
+export interface PredictionLineResponse {
+  success: boolean;
+  symbol: string;
+  interval: string;
+  current_price: number;
+  current_time: number;
+  prediction_line: PredictionLinePoint[];
+  direction: PredictionDirection;
+  confidence: number;
+  reasoning: string;
+  news_analyzed: number;
+  model_version: string;
+  generated_at: string; // ISO 8601
+}

@@ -9,9 +9,8 @@ export const googleOAuthConfig = {
     redirect_uris: [
       "http://localhost:3000",
       "http://localhost:3000/google/callback",
-      "http://fat.org/google/callback",
     ],
-    javascript_origins: ["http://localhost:3000", "http://fat.org"],
+    javascript_origins: ["http://localhost:3000"],
   },
 } as const;
 

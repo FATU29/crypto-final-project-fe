@@ -23,6 +23,10 @@ import { Plus, Settings2, X } from "lucide-react";
 import { TradingPair, ChartTimeframe } from "@/types/trading";
 import { MOCK_TRADING_PAIRS, CHART_TIMEFRAMES } from "@/lib/constants/trading";
 import PriceChart from "@/app/(features)/charts/PriceChart";
+import { IndicatorSelector } from "@/components/charts/IndicatorSelector";
+import { NewsToggle } from "@/components/charts/NewsToggle";
+import { IndicatorKey } from "@/lib/utils/indicators";
+import { useChartNewsMarkers } from "@/hooks/use-chart-news-markers";
 
 interface ChartConfig {
   id: string;
@@ -248,6 +252,30 @@ const ChartWrapper = memo(
   }: ChartWrapperProps) {
     const disconnectRef = useRef<(() => void) | null>(null);
 
+    // Indicator state
+    const [activeIndicators, setActiveIndicators] = useState<IndicatorKey[]>(
+      [],
+    );
+
+    // News markers state
+    const [showNews, setShowNews] = useState(false);
+
+    const { markers: newsMarkers, isLoading: newsLoading } =
+      useChartNewsMarkers({
+        symbol,
+        enabled: showNews,
+      });
+
+    const handleToggleIndicator = useCallback((key: IndicatorKey) => {
+      setActiveIndicators((prev) =>
+        prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
+      );
+    }, []);
+
+    const handleToggleNews = useCallback(() => {
+      setShowNews((prev) => !prev);
+    }, []);
+
     // Register disconnect callback when component mounts or when disconnect function changes
     useEffect(() => {
       if (disconnectRef.current) {
@@ -264,11 +292,25 @@ const ChartWrapper = memo(
     );
 
     return (
-      <div className="w-full min-w-0">
+      <div className="w-full min-w-0 space-y-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <IndicatorSelector
+            activeIndicators={activeIndicators}
+            onToggle={handleToggleIndicator}
+          />
+          <NewsToggle
+            enabled={showNews}
+            onToggle={handleToggleNews}
+            markerCount={newsMarkers.length}
+            isLoading={newsLoading}
+          />
+        </div>
         <PriceChart
           symbol={symbol}
           interval={interval}
           height={height}
+          activeIndicators={activeIndicators}
+          newsMarkers={showNews ? newsMarkers : []}
           onDisconnectReady={handleDisconnectRegister}
         />
       </div>
