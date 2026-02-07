@@ -13,8 +13,13 @@ WORKDIR /app
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies
-RUN npm ci
+# Install dependencies (with retry for network issues)
+RUN for i in 1 2 3; do \
+      npm ci && break; \
+      echo "npm ci retry $i failed, waiting..."; \
+      rm -rf node_modules package-lock.json; \
+      sleep 5; \
+    done
 
 # Stage 2: Builder
 FROM node:20-alpine AS builder
