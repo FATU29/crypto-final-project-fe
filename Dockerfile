@@ -3,7 +3,11 @@
 
 # Stage 1: Dependencies
 FROM node:20-alpine AS deps
-RUN apk add --no-cache libc6-compat
+RUN for i in 1 2 3; do \
+      apk update && apk add --no-cache libc6-compat && break; \
+      echo "Retry $i failed, waiting..."; \
+      sleep 5; \
+    done
 WORKDIR /app
 
 # Copy package files
