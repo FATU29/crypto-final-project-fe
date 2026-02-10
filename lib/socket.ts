@@ -1,26 +1,28 @@
 import { io, Socket } from "socket.io-client";
 
-// Store multiple socket instances for different namespaces
+// Singleton socket connection for the prices namespace
 let priceSocket: Socket | null = null;
 
 /**
  * Get or create a socket connection to the prices namespace
- * Connects to the backend NestJS server
+ * Uses websocket-only transport for lowest latency
  */
 export function getPriceSocket(): Socket {
-  if (!priceSocket) {
-    // Socket.IO works with http:// or ws://, but http:// is preferred for initial connection
+  if (!priceSocket || priceSocket.disconnected) {
     const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
-    // Convert ws:// to http:// for Socket.IO (it will upgrade to WebSocket automatically)
-    const socketUrl = wsUrl.replace("ws://", "http://").replace("wss://", "https://") + "/prices";
-    console.log("🔌 Connecting to price socket:", socketUrl);
+    const socketUrl =
+      wsUrl.replace("ws://", "http://").replace("wss://", "https://") +
+      "/prices";
 
     priceSocket = io(socketUrl, {
-      transports: ["websocket", "polling"],
+      transports: ["websocket"],
       reconnection: true,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
-      reconnectionAttempts: 5,
+      reconnectionDelay: 500,
+      reconnectionDelayMax: 3000,
+      reconnectionAttempts: Infinity,
+      // Reduce overhead
+      forceNew: false,
+      multiplex: true,
     });
 
     priceSocket.on("connect", () => {
@@ -32,7 +34,7 @@ export function getPriceSocket(): Socket {
     });
 
     priceSocket.on("connect_error", (error) => {
-      console.error("❌ Price socket connection error:", error);
+      console.error("❌ Price socket connection error:", error.message);
     });
   }
   return priceSocket;
@@ -63,28 +65,31 @@ export interface PriceUpdatePayload {
  */
 export function subscribeToPriceUpdates(
   symbol: string,
-  callback: (data: PriceUpdatePayload) => void
+  callback: (data: PriceUpdatePayload) => void,
 ): () => void {
   const socket = getPriceSocket();
+  const upperSymbol = symbol.toUpperCase();
 
-  // Subscribe to the symbol
-  socket.emit("subscribe", { symbol: symbol.toUpperCase() });
-  console.log("📊 Subscribed to price updates:", symbol);
+  // Subscribe to the symbol room
+  socket.emit("subscribe", { symbol: upperSymbol });
 
-  // Listen for price updates
-  const handler = (payload: PriceUpdatePayload) => {
-    if (payload.symbol.toUpperCase() === symbol.toUpperCase()) {
-      callback(payload);
+  // Handle compact payload format { s, p, t } from optimized backend
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handler = (payload: any) => {
+    // Support both compact {s,p,t} and legacy {symbol,price,ts} formats
+    const sym = payload.s || payload.symbol;
+    const price = payload.p || payload.price;
+    const ts = payload.t || payload.ts;
+    if (sym && sym.toUpperCase() === upperSymbol) {
+      callback({ symbol: sym, price, ts });
     }
   };
 
   socket.on("priceUpdate", handler);
 
-  // Return cleanup function
   return () => {
     socket.off("priceUpdate", handler);
-    socket.emit("unsubscribe", { symbol: symbol.toUpperCase() });
-    console.log("🔌 Unsubscribed from price updates:", symbol);
+    socket.emit("unsubscribe", { symbol: upperSymbol });
   };
 }
 
@@ -97,7 +102,7 @@ export function getSocket(): Socket {
 
 export function subscribeTicker(
   symbol: string,
-  cb: (data: TickerPayload) => void
+  cb: (data: TickerPayload) => void,
 ): () => void {
   return subscribeToPriceUpdates(symbol, cb);
 }

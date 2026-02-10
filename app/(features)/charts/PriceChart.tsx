@@ -74,9 +74,19 @@ const PriceChart = memo(function PriceChart({
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const predictionSeriesRef = useRef<any>(null);
   const candleDataRef = useRef<CandleData[]>([]);
+  const volumeDataRef = useRef<
+    { time: number; value: number; color: string }[]
+  >([]);
   const newsMarkersRef = useRef<NewsMarker[]>([]);
 
+  // Lazy-load state for scrolling into the past
+  const isFetchingMoreRef = useRef(false);
+  const oldestTimestampRef = useRef<number | null>(null);
+  const noMoreDataRef = useRef(false);
+  const fetchOlderRef = useRef<() => void>(() => {});
+
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [lastPrice, setLastPrice] = useState<number | null>(null);
   const [hoverData, setHoverData] = useState<{
@@ -256,8 +266,8 @@ const PriceChart = memo(function PriceChart({
       value: parseFloat(kline.v),
       color:
         parseFloat(kline.c) >= parseFloat(kline.o)
-          ? "rgba(34, 197, 94, 0.5)"
-          : "rgba(239, 68, 68, 0.5)",
+          ? "rgba(38, 166, 154, 0.5)"
+          : "rgba(239, 83, 80, 0.5)",
     };
 
     try {
@@ -271,8 +281,10 @@ const PriceChart = memo(function PriceChart({
       );
       if (lastIdx >= 0) {
         candleDataRef.current[lastIdx] = candle;
+        volumeDataRef.current[lastIdx] = volume;
       } else {
         candleDataRef.current.push(candle);
+        volumeDataRef.current.push(volume);
       }
 
       // Re-apply indicators with updated data
@@ -296,18 +308,25 @@ const PriceChart = memo(function PriceChart({
     }
   }, [disconnect, onDisconnectReady]);
 
-  // Fetch historical data from Binance REST API
+  // Fetch historical data from backend (MongoDB cache → Binance REST fallback)
   useEffect(() => {
     if (!symbol || !interval) {
       setError("Missing symbol or interval");
       return;
     }
 
+    // AbortController to cancel stale requests when symbol/interval changes
+    const abortController = new AbortController();
+
     // Reset state when symbol or interval changes
     setIsLoading(true);
     setError(null);
     setLastPrice(null);
     candleDataRef.current = [];
+    volumeDataRef.current = [];
+    oldestTimestampRef.current = null;
+    noMoreDataRef.current = false;
+    isFetchingMoreRef.current = false;
 
     // Clear existing chart data
     if (candlestickSeriesRef.current && volumeSeriesRef.current) {
@@ -318,63 +337,89 @@ const PriceChart = memo(function PriceChart({
     const fetchHistoricalData = async () => {
       try {
         const limit = 1000;
-        const url = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${interval}&limit=${limit}`;
+        const backendUrl =
+          process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+        const url = `${backendUrl}/binance/history?symbol=${symbol}&interval=${interval}&limit=${limit}`;
 
-        console.log("📊 Fetching historical data:", url);
-
-        const response = await fetch(url);
+        const response = await fetch(url, {
+          signal: abortController.signal,
+        });
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}: ${response.statusText}`);
         }
 
-        const data = await response.json();
+        // Check if this request was aborted (symbol/interval changed)
+        if (abortController.signal.aborted) return;
 
-        const candles: CandleData[] = data.map((d: (number | string)[]) => {
-          const timestampMs = Number(d[0]); // Binance returns UTC milliseconds
-          const timestampSec = Math.floor(timestampMs / 1000);
-          
-          // Debug: log first candle to verify timestamp
-          if (data.indexOf(d) === 0 && process.env.NODE_ENV === 'development') {
-            const date = new Date(timestampMs);
-            console.log('📊 First candle timestamp:', {
-              ms: timestampMs,
-              sec: timestampSec,
-              utc: date.toISOString(),
-              local: date.toLocaleString(),
-            });
-          }
-          
-          return {
-            time: timestampSec,
-            open: Number(d[1]),
-            high: Number(d[2]),
-            low: Number(d[3]),
-            close: Number(d[4]),
-          };
+        const result = await response.json();
+        const klineData = result.data || [];
+
+        // Deduplicate by time and sort chronologically
+        const seenTimes = new Set<number>();
+        const uniqueKlineData = klineData.filter((d: { openTime: number }) => {
+          const t = Math.floor(d.openTime / 1000);
+          if (seenTimes.has(t)) return false;
+          seenTimes.add(t);
+          return true;
         });
+        uniqueKlineData.sort(
+          (a: { openTime: number }, b: { openTime: number }) =>
+            a.openTime - b.openTime,
+        );
 
-        const volumes = data.map((d: (number | string)[]) => ({
-          time: Math.floor(Number(d[0]) / 1000),
-          value: Number(d[5]),
-          color:
-            Number(d[4]) >= Number(d[1])
-              ? "rgba(34, 197, 94, 0.5)"
-              : "rgba(239, 68, 68, 0.5)",
-        }));
+        const candles: CandleData[] = uniqueKlineData.map(
+          (d: {
+            openTime: number;
+            open: string;
+            high: string;
+            low: string;
+            close: string;
+          }) => ({
+            time: Math.floor(d.openTime / 1000),
+            open: Number(d.open),
+            high: Number(d.high),
+            low: Number(d.low),
+            close: Number(d.close),
+          }),
+        );
+
+        const volumes = uniqueKlineData.map(
+          (d: {
+            openTime: number;
+            open: string;
+            close: string;
+            volume: string;
+          }) => ({
+            time: Math.floor(d.openTime / 1000),
+            value: Number(d.volume),
+            color:
+              Number(d.close) >= Number(d.open)
+                ? "rgba(38, 166, 154, 0.5)"
+                : "rgba(239, 83, 80, 0.5)",
+          }),
+        );
+
+        // Final guard against stale response
+        if (abortController.signal.aborted) return;
 
         if (candlestickSeriesRef.current && volumeSeriesRef.current) {
           candlestickSeriesRef.current.setData(candles);
           volumeSeriesRef.current.setData(volumes);
           candleDataRef.current = candles;
+          volumeDataRef.current = volumes;
 
           if (candles.length > 0) {
             setLastPrice(candles[candles.length - 1].close);
+            // Track the oldest timestamp for lazy-loading older data
+            oldestTimestampRef.current = uniqueKlineData[0].openTime;
           }
         }
 
         setIsLoading(false);
-        console.log("✅ Historical data loaded:", candles.length, "candles");
       } catch (err) {
+        // Ignore abort errors (expected when switching symbol/interval)
+        if (err instanceof DOMException && err.name === "AbortError") return;
+
         console.error("❌ Error fetching historical data:", err);
         setError(
           err instanceof Error ? err.message : "Failed to load chart data",
@@ -384,7 +429,162 @@ const PriceChart = memo(function PriceChart({
     };
 
     fetchHistoricalData();
+
+    return () => {
+      abortController.abort();
+    };
   }, [symbol, interval]);
+
+  // Lazy-load older candles when user scrolls to the left edge
+  const fetchOlderCandles = useCallback(async () => {
+    if (
+      isFetchingMoreRef.current ||
+      noMoreDataRef.current ||
+      !oldestTimestampRef.current ||
+      !candlestickSeriesRef.current ||
+      !volumeSeriesRef.current
+    ) {
+      return;
+    }
+
+    isFetchingMoreRef.current = true;
+    setIsFetchingMore(true);
+
+    try {
+      const batchSize = 500;
+      const backendUrl =
+        process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+      const endTime = oldestTimestampRef.current - 1;
+      const url = `${backendUrl}/binance/history?symbol=${symbol}&interval=${interval}&limit=${batchSize}&endTime=${endTime}`;
+
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const result = await response.json();
+      const klineData = result.data || [];
+
+      if (klineData.length === 0) {
+        noMoreDataRef.current = true;
+        return;
+      }
+
+      const newCandles: CandleData[] = klineData.map(
+        (d: {
+          openTime: number;
+          open: string;
+          high: string;
+          low: string;
+          close: string;
+        }) => ({
+          time: Math.floor(d.openTime / 1000),
+          open: Number(d.open),
+          high: Number(d.high),
+          low: Number(d.low),
+          close: Number(d.close),
+        }),
+      );
+
+      const newVolumes = klineData.map(
+        (d: {
+          openTime: number;
+          open: string;
+          close: string;
+          volume: string;
+        }) => ({
+          time: Math.floor(d.openTime / 1000),
+          value: Number(d.volume),
+          color:
+            Number(d.close) >= Number(d.open)
+              ? "rgba(38, 166, 154, 0.5)"
+              : "rgba(239, 83, 80, 0.5)",
+        }),
+      );
+
+      // Deduplicate and merge: prepend new candles before existing
+      const existingTimes = new Set(candleDataRef.current.map((c) => c.time));
+      const uniqueNewCandles = newCandles.filter(
+        (c) => !existingTimes.has(c.time),
+      );
+      const uniqueNewVolumes = newVolumes.filter(
+        (v: { time: number }) => !existingTimes.has(v.time),
+      );
+
+      if (uniqueNewCandles.length === 0) {
+        noMoreDataRef.current = true;
+        return;
+      }
+
+      // Merge arrays (new older data comes first, then existing)
+      const mergedCandles = [
+        ...uniqueNewCandles,
+        ...candleDataRef.current,
+      ].sort((a, b) => (a.time as number) - (b.time as number));
+      const mergedVolumes = [
+        ...uniqueNewVolumes,
+        ...volumeDataRef.current,
+      ].sort((a, b) => a.time - b.time);
+
+      // Update refs
+      candleDataRef.current = mergedCandles;
+      volumeDataRef.current = mergedVolumes;
+      oldestTimestampRef.current = klineData[0].openTime;
+
+      // Replace all series data (lightweight-charts handles prepend via setData)
+      candlestickSeriesRef.current.setData(mergedCandles);
+      volumeSeriesRef.current.setData(mergedVolumes);
+
+      // If we got fewer candles than requested, no more history
+      if (klineData.length < batchSize) {
+        noMoreDataRef.current = true;
+      }
+
+      // Re-apply indicators with expanded dataset
+      if (activeIndicators.length > 0) {
+        applyIndicators();
+      }
+    } catch (err) {
+      console.error("❌ Error fetching older candles:", err);
+    } finally {
+      isFetchingMoreRef.current = false;
+      setIsFetchingMore(false);
+    }
+  }, [symbol, interval, activeIndicators, applyIndicators]);
+
+  // Keep ref in sync so the timeScale subscription always calls the latest version
+  useEffect(() => {
+    fetchOlderRef.current = fetchOlderCandles;
+  }, [fetchOlderCandles]);
+
+  // Subscribe to visible logical range changes to trigger lazy-load
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart || isLoading) return;
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const onVisibleLogicalRangeChange = (logicalRange: any) => {
+      if (!logicalRange) return;
+      // When the user scrolls so the leftmost visible bar index < 10, fetch more
+      if (logicalRange.from < 10) {
+        fetchOlderRef.current();
+      }
+    };
+
+    chart
+      .timeScale()
+      .subscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
+
+    return () => {
+      try {
+        chart
+          .timeScale()
+          .unsubscribeVisibleLogicalRangeChange(onVisibleLogicalRangeChange);
+      } catch {
+        // chart may have been disposed
+      }
+    };
+  }, [isLoading, symbol, interval]);
 
   // Apply indicators when data loads or active indicators change
   useEffect(() => {
@@ -468,8 +668,9 @@ const PriceChart = memo(function PriceChart({
         borderColor: "rgba(42, 46, 57, 0.5)",
         timeVisible: true,
         secondsVisible: false,
-        rightOffset: 10,
-        barSpacing: 6,
+        rightOffset: 12,
+        barSpacing: 12,
+        minBarSpacing: 4,
         fixLeftEdge: false,
         fixRightEdge: false,
         lockVisibleTimeRangeOnResize: false,
@@ -479,12 +680,20 @@ const PriceChart = memo(function PriceChart({
     });
 
     const candlestickSeries = chart.addSeries(CandlestickSeries, {
-      upColor: "#22C55E",
-      downColor: "#EF4444",
-      borderUpColor: "#22C55E",
-      borderDownColor: "#EF4444",
-      wickUpColor: "#22C55E",
-      wickDownColor: "#EF4444",
+      upColor: "#26A69A",
+      downColor: "#EF5350",
+      borderUpColor: "#26A69A",
+      borderDownColor: "#EF5350",
+      wickUpColor: "#26A69A",
+      wickDownColor: "#EF5350",
+    });
+
+    // Candlestick occupies top 75% of chart (like Binance)
+    candlestickSeries.priceScale().applyOptions({
+      scaleMargins: {
+        top: 0.05,
+        bottom: 0.25,
+      },
     });
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
@@ -494,9 +703,10 @@ const PriceChart = memo(function PriceChart({
       priceScaleId: "",
     });
 
+    // Volume occupies bottom 25% of chart
     volumeSeries.priceScale().applyOptions({
       scaleMargins: {
-        top: 0.8,
+        top: 0.75,
         bottom: 0,
       },
     });
@@ -571,9 +781,11 @@ const PriceChart = memo(function PriceChart({
 
     window.addEventListener("resize", handleResize);
 
+    const indicatorSeries = indicatorSeriesRef.current;
+
     return () => {
       window.removeEventListener("resize", handleResize);
-      indicatorSeriesRef.current.clear();
+      indicatorSeries.clear();
       markersPluginRef.current = null;
       predictionSeriesRef.current = null;
       if (chartRef.current) {
@@ -728,6 +940,14 @@ const PriceChart = memo(function PriceChart({
                 Loading chart data...
               </p>
             </div>
+          </div>
+        )}
+        {isFetchingMore && (
+          <div className="absolute left-3 top-3 z-10 flex items-center gap-2 bg-background/80 backdrop-blur-sm rounded-md px-3 py-1.5 border border-border shadow-sm">
+            <div className="animate-spin rounded-full h-3.5 w-3.5 border-b-2 border-primary"></div>
+            <span className="text-xs text-muted-foreground">
+              Loading older data...
+            </span>
           </div>
         )}
         <div ref={chartContainerRef} className="w-full" />
