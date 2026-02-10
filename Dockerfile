@@ -1,32 +1,20 @@
-# syntax=docker/dockerfile:1.4
 # Multi-stage build for Next.js application
 
-# Stage 1: Dependencies
-FROM node:20-alpine AS deps
-RUN for i in 1 2 3; do \
-      apk update && apk add --no-cache libc6-compat && break; \
-      echo "Retry $i failed, waiting..."; \
-      sleep 5; \
-    done
+# Stage 1: Builder
+FROM node:20-alpine AS builder
+
+# Install system dependencies
+RUN apk add --no-cache libc6-compat
+
 WORKDIR /app
 
 # Copy package files
 COPY package*.json ./
 
-# Install dependencies (with retry for network issues)
-RUN for i in 1 2 3; do \
-      npm ci && break; \
-      echo "npm ci retry $i failed, waiting..."; \
-      rm -rf node_modules package-lock.json; \
-      sleep 5; \
-    done
+# Install dependencies
+RUN npm ci
 
-# Stage 2: Builder
-FROM node:20-alpine AS builder
-WORKDIR /app
-
-# Copy dependencies from deps stage
-COPY --from=deps /app/node_modules ./node_modules
+# Copy source code
 COPY . .
 
 # Set environment variables for build
@@ -47,11 +35,12 @@ ENV NEXT_PUBLIC_WS_URL=${NEXT_PUBLIC_WS_URL}
 ENV NEXT_PUBLIC_APP_URL=${NEXT_PUBLIC_APP_URL}
 ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=${NEXT_PUBLIC_GOOGLE_CLIENT_ID}
 
-# Build the application with network access for font downloads
-# Clear Next.js cache to ensure fresh build
-RUN rm -rf .next && npm run build
+# Build the application
+RUN rm -rf .next && \
+    npm run build && \
+    test -f .next/standalone/server.js
 
-# Stage 3: Runner
+# Stage 2: Runner
 FROM node:20-alpine AS runner
 WORKDIR /app
 
@@ -59,6 +48,7 @@ ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ENV TZ=Asia/Bangkok
 
 # Create a non-root user
 RUN addgroup --system --gid 1001 nodejs && \

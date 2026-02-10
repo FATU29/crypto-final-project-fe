@@ -22,6 +22,66 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
+
+// Helper function to parse date consistently
+// Tries to handle both UTC and local time formats from API
+const parseDate = (timeString: string, debug = false): dayjs.Dayjs => {
+  if (!timeString) {
+    return dayjs();
+  }
+  
+  let date: dayjs.Dayjs;
+  const originalString = timeString;
+  
+  if (typeof timeString === 'string') {
+    // If it ends with Z, it's definitely UTC - parse and convert to local
+    if (timeString.endsWith('Z')) {
+      date = dayjs.utc(timeString).local();
+      if (debug) console.log('Parsed as UTC (Z):', originalString, '->', date.format());
+    } 
+    // If it has explicit timezone offset (+HH:MM or -HH:MM)
+    else if (timeString.match(/[+-]\d{2}:\d{2}$/)) {
+      // Parse with timezone info and convert to local
+      date = dayjs(timeString).local();
+      if (debug) console.log('Parsed with timezone:', originalString, '->', date.format());
+    }
+    // For strings without timezone info, try local first (API might already return local time)
+    else {
+      // First try: parse as local time (API might already return local timezone)
+      date = dayjs(timeString);
+      if (date.isValid()) {
+        if (debug) console.log('Parsed as local time:', originalString, '->', date.format());
+      } else {
+        // Second try: assume it's UTC (common for APIs)
+        date = dayjs.utc(timeString);
+        if (date.isValid()) {
+          date = date.local();
+          if (debug) console.log('Parsed as UTC (no Z):', originalString, '->', date.format());
+        } else {
+          // Third try: try parsing as ISO string
+          date = dayjs(timeString);
+          if (debug) console.log('Parsed as ISO:', originalString, '->', date.format());
+        }
+      }
+    }
+  } else {
+    // For non-string values, parse directly
+    date = dayjs(timeString);
+  }
+  
+  // Ensure date is valid
+  if (!date.isValid()) {
+    console.warn('Invalid date format:', timeString, 'Using current time as fallback');
+    date = dayjs(); // Fallback to current time
+  }
+  
+  return date;
+};
 
 interface CustomTooltipProps extends TooltipProps<number, string> {
   active?: boolean;
@@ -45,12 +105,18 @@ interface SentimentTrendChartProps {
   height?: number;
 }
 
-// CustomTooltip component declared outside render
+// CustomTooltip component - format date same way as chart labels
 function CustomTooltip({ active, payload }: CustomTooltipProps) {
   if (active && payload && payload.length) {
+    const data = payload[0].payload;
+    
+    // Format fullTime using the same parse function
+    const date = parseDate(data.fullTime);
+    const formattedTime = date.format("MMM DD, YYYY HH:mm");
+    
     return (
       <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
-        <p className="font-medium text-sm mb-2">{payload[0].payload.fullTime}</p>
+        <p className="font-medium text-sm mb-2">{formattedTime}</p>
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <div className="w-3 h-3 rounded-full bg-green-500"></div>
@@ -100,37 +166,47 @@ export function SentimentTrendChart({
   const { trends, loading, error } = useSentimentTrends(params);
 
   // Format data for chart
-  const chartData = trends.map((trend) => {
-    const date = dayjs(trend.time);
-    let timeLabel = "";
+  const chartData = useMemo(() => {
+    // Debug: log first trend to see format
+    if (trends.length > 0 && process.env.NODE_ENV === 'development') {
+      console.log('Sample trend.time format:', trends[0].time);
+      console.log('Sample parsed date:', parseDate(trends[0].time, true).format());
+    }
+    
+    return trends.map((trend) => {
+      // Parse date using the same helper function
+      const date = parseDate(trend.time);
+      
+      let timeLabel = "";
 
     switch (selectedTimeframe) {
       case "hour":
-        timeLabel = date.format("HH:mm");
+        timeLabel = date.format("MMM DD HH:mm");
         break;
       case "day":
-        timeLabel = date.format("MMM DD");
+        timeLabel = date.format("MMM DD, YYYY HH:mm");
         break;
       case "week":
-        timeLabel = `Week ${date.format("WW")}`;
+        timeLabel = date.format("MMM DD, YYYY HH:mm");
         break;
       case "month":
-        timeLabel = date.format("MMM YYYY");
+        timeLabel = date.format("MMM DD, YYYY HH:mm");
         break;
       default:
-        timeLabel = date.format("MMM DD");
+        timeLabel = date.format("MMM DD, YYYY HH:mm");
     }
 
-    return {
-      time: timeLabel,
-      fullTime: trend.time,
-      positive: trend.positive,
-      negative: trend.negative,
-      neutral: trend.neutral,
-      avgScore: (trend.avg_score * 100).toFixed(1),
-      total: trend.total,
-    };
-  });
+      return {
+        time: timeLabel,
+        fullTime: trend.time,
+        positive: trend.positive,
+        negative: trend.negative,
+        neutral: trend.neutral,
+        avgScore: (trend.avg_score * 100).toFixed(1),
+        total: trend.total,
+      };
+    });
+  }, [trends, selectedTimeframe]);
 
   if (loading) {
     return (
@@ -249,7 +325,10 @@ export function SentimentTrendChart({
               <XAxis
                 dataKey="time"
                 className="text-xs"
-                tick={{ fill: "#6b7280" }}
+                tick={{ fill: "#6b7280", fontSize: 11 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
               />
               <YAxis className="text-xs" tick={{ fill: "#6b7280" }} />
               <Tooltip content={<CustomTooltip />} />
@@ -299,7 +378,10 @@ export function SentimentTrendChart({
               <XAxis
                 dataKey="time"
                 className="text-xs"
-                tick={{ fill: "#6b7280" }}
+                tick={{ fill: "#6b7280", fontSize: 11 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
               />
               <YAxis className="text-xs" tick={{ fill: "#6b7280" }} />
               <Tooltip content={<CustomTooltip />} />
@@ -332,7 +414,10 @@ export function SentimentTrendChart({
               <XAxis
                 dataKey="time"
                 className="text-xs"
-                tick={{ fill: "#6b7280" }}
+                tick={{ fill: "#6b7280", fontSize: 11 }}
+                angle={-45}
+                textAnchor="end"
+                height={80}
               />
               <YAxis className="text-xs" tick={{ fill: "#6b7280" }} />
               <Tooltip content={<CustomTooltip />} />

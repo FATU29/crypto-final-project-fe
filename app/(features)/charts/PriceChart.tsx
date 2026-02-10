@@ -329,13 +329,29 @@ const PriceChart = memo(function PriceChart({
 
         const data = await response.json();
 
-        const candles: CandleData[] = data.map((d: (number | string)[]) => ({
-          time: Math.floor(Number(d[0]) / 1000),
-          open: Number(d[1]),
-          high: Number(d[2]),
-          low: Number(d[3]),
-          close: Number(d[4]),
-        }));
+        const candles: CandleData[] = data.map((d: (number | string)[]) => {
+          const timestampMs = Number(d[0]); // Binance returns UTC milliseconds
+          const timestampSec = Math.floor(timestampMs / 1000);
+          
+          // Debug: log first candle to verify timestamp
+          if (data.indexOf(d) === 0 && process.env.NODE_ENV === 'development') {
+            const date = new Date(timestampMs);
+            console.log('📊 First candle timestamp:', {
+              ms: timestampMs,
+              sec: timestampSec,
+              utc: date.toISOString(),
+              local: date.toLocaleString(),
+            });
+          }
+          
+          return {
+            time: timestampSec,
+            open: Number(d[1]),
+            high: Number(d[2]),
+            low: Number(d[3]),
+            close: Number(d[4]),
+          };
+        });
 
         const volumes = data.map((d: (number | string)[]) => ({
           time: Math.floor(Number(d[0]) / 1000),
@@ -452,6 +468,13 @@ const PriceChart = memo(function PriceChart({
         borderColor: "rgba(42, 46, 57, 0.5)",
         timeVisible: true,
         secondsVisible: false,
+        rightOffset: 10,
+        barSpacing: 6,
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: false,
+        rightBarStaysOnScroll: false,
+        shiftVisibleRangeOnNewBar: true,
       },
     });
 
