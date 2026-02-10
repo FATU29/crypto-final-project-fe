@@ -9,10 +9,13 @@ let priceSocket: Socket | null = null;
  */
 export function getPriceSocket(): Socket {
   if (!priceSocket) {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3000";
-    console.log("🔌 Connecting to price socket:", `${wsUrl}/prices`);
+    // Socket.IO works with http:// or ws://, but http:// is preferred for initial connection
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+    // Convert ws:// to http:// for Socket.IO (it will upgrade to WebSocket automatically)
+    const socketUrl = wsUrl.replace("ws://", "http://").replace("wss://", "https://") + "/prices";
+    console.log("🔌 Connecting to price socket:", socketUrl);
 
-    priceSocket = io(`${wsUrl}/prices`, {
+    priceSocket = io(socketUrl, {
       transports: ["websocket", "polling"],
       reconnection: true,
       reconnectionDelay: 1000,

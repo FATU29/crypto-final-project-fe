@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from "react";
+import { io, Socket } from "socket.io-client";
 
 export interface BinanceKlineData {
   t: number; // Kline start time
@@ -57,14 +58,9 @@ export function useBinanceWebSocket({
   onDisconnect,
   onError,
 }: UseBinanceWebSocketOptions): UseBinanceWebSocketReturn {
-  const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const reconnectAttemptsRef = useRef(0);
-  const connectFnRef = useRef<(() => void) | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const prevSymbolRef = useRef<string | null>(null);
   const prevIntervalRef = useRef<string | null>(null);
-  const maxReconnectAttempts = 5;
-  const reconnectDelay = 3000;
 
   const [isConnected, setIsConnected] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -105,87 +101,96 @@ export function useBinanceWebSocket({
     prevIntervalRef.current = interval;
 
     // Close existing connection
-    if (wsRef.current) {
-      wsRef.current.close();
+    if (socketRef.current) {
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
 
-    const streamName = `${symbol.toLowerCase()}@kline_${interval}`;
-    const wsUrl = `wss://stream.binance.com:9443/ws/${streamName}`;
+    // Connect to backend Socket.IO server
+    // Socket.IO works with http:// or ws://, but http:// is preferred for initial connection
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "http://localhost:3001";
+    // Convert ws:// to http:// for Socket.IO (it will upgrade to WebSocket automatically)
+    const socketUrl = wsUrl.replace("ws://", "http://").replace("wss://", "https://") + "/prices";
 
-    console.log("🔌 [WebSocket] Connecting to:", wsUrl);
+    console.log("🔌 [WebSocket] Connecting to backend:", socketUrl);
 
     try {
-      const ws = new WebSocket(wsUrl);
+      const socket = io(socketUrl, {
+        transports: ["websocket", "polling"],
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+      });
 
-      ws.onopen = () => {
-        console.log("✅ [WebSocket] Connected:", streamName);
+      socket.on("connect", () => {
+        console.log("✅ [WebSocket] Connected to backend:", socket.id);
         setIsConnected(true);
         setError(null);
-        reconnectAttemptsRef.current = 0;
+        
+        // Subscribe to symbol
+        socket.emit("subscribe", { symbol: symbol.toUpperCase() });
+        console.log("📊 [WebSocket] Subscribed to:", symbol.toUpperCase());
+        
         onConnectRef.current?.();
-      };
+      });
 
-      ws.onmessage = (event) => {
+      socket.on("klineUpdate", (data: { e: string; E: number; s: string; k: { t: number; T: number; s: string; i: string; o: string; c: string; h: string; l: string; v: string; n: number; x: boolean; q: string } }) => {
         try {
-          const data: BinanceKlineMessage = JSON.parse(event.data);
-          setLastMessage(data);
-          onMessageRef.current?.(data);
+          // Convert backend kline format to BinanceKlineMessage format
+          // Backend sends: { e, E, s, k: { t, T, s, i, o, c, h, l, v, n, x, q, V, Q } }
+          // Frontend expects: BinanceKlineMessage format
+          if (data.e === "kline" && data.k && data.k.i === interval) {
+            const klineMessage: BinanceKlineMessage = {
+              e: data.e,
+              E: data.E,
+              s: data.s,
+              k: {
+                t: data.k.t,
+                o: data.k.o,
+                h: data.k.h,
+                l: data.k.l,
+                c: data.k.c,
+                v: data.k.v,
+                x: data.k.x,
+              },
+            };
+            setLastMessage(klineMessage);
+            onMessageRef.current?.(klineMessage);
+          }
         } catch (err) {
-          console.error("❌ [WebSocket] Error parsing message:", err);
+          console.error("❌ [WebSocket] Error parsing kline message:", err);
         }
-      };
+      });
 
-      ws.onerror = (error) => {
-        console.error("❌ [WebSocket] Error:", error);
+      socket.on("connect_error", (error) => {
+        console.error("❌ [WebSocket] Connection error:", error);
         setError("WebSocket connection error");
-        onErrorRef.current?.(error);
-      };
-
-      ws.onclose = (event) => {
-        console.log("🔌 [WebSocket] Disconnected:", event.code, event.reason);
         setIsConnected(false);
-        wsRef.current = null;
+        onErrorRef.current?.(error as unknown as Event);
+      });
+
+      socket.on("disconnect", (reason) => {
+        console.log("🔌 [WebSocket] Disconnected:", reason);
+        setIsConnected(false);
         onDisconnectRef.current?.();
+      });
 
-        // Auto-reconnect if not a normal closure
-        if (
-          enabled &&
-          event.code !== 1000 &&
-          reconnectAttemptsRef.current < maxReconnectAttempts
-        ) {
-          reconnectAttemptsRef.current++;
-          console.log(
-            `🔄 [WebSocket] Reconnecting in ${reconnectDelay}ms (attempt ${reconnectAttemptsRef.current}/${maxReconnectAttempts})...`
-          );
-
-          reconnectTimeoutRef.current = setTimeout(() => {
-            connectFnRef.current?.();
-          }, reconnectDelay);
-        }
-      };
-
-      wsRef.current = ws;
+      socketRef.current = socket;
     } catch (err) {
       console.error("❌ [WebSocket] Connection error:", err);
       setError(err instanceof Error ? err.message : "Failed to connect");
     }
   }, [symbol, interval, enabled]);
 
-  // Store connect function in ref
-  useEffect(() => {
-    connectFnRef.current = connect;
-  }, [connect]);
-
   const disconnect = useCallback(() => {
-    if (reconnectTimeoutRef.current) {
-      clearTimeout(reconnectTimeoutRef.current);
-      reconnectTimeoutRef.current = null;
-    }
-
-    if (wsRef.current) {
+    if (socketRef.current) {
       console.log("🔌 [WebSocket] Manually disconnecting...");
-      wsRef.current.close(1000, "Manual disconnect");
-      wsRef.current = null;
+      if (prevSymbolRef.current) {
+        socketRef.current.emit("unsubscribe", { symbol: prevSymbolRef.current.toUpperCase() });
+      }
+      socketRef.current.disconnect();
+      socketRef.current = null;
     }
 
     setIsConnected(false);
@@ -193,7 +198,6 @@ export function useBinanceWebSocket({
 
   const reconnect = useCallback(() => {
     disconnect();
-    reconnectAttemptsRef.current = 0;
     setTimeout(() => connect(), 100);
   }, [connect, disconnect]);
 
