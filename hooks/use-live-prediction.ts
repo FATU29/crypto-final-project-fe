@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { useAuth } from "@/lib/auth/AuthContext";
 import { auth } from "@/lib/auth/utils";
+import { getPriceSocket } from "@/lib/socket";
 import {
   PredictionDirection,
   PredictionLinePoint,
@@ -10,7 +11,6 @@ import {
 
 const GATEWAY_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:9000";
 const REFRESH_INTERVAL = 60_000; // re-fetch prediction every 60s
-const BINANCE_WS_URL = "wss://stream.binance.com:9443/ws";
 
 export interface LivePredictionTarget {
   label: string;
@@ -83,7 +83,6 @@ export function useLivePrediction({
 
   // Refs
   const abortRef = useRef<AbortController | null>(null);
-  const wsRef = useRef<WebSocket | null>(null);
   const refreshTimerRef = useRef<NodeJS.Timeout | null>(null);
   const basePriceRef = useRef<number | null>(null); // price when prediction was generated
 
@@ -146,43 +145,47 @@ export function useLivePrediction({
     }
   }, [symbol, interval, isVipUser]);
 
-  // ---------- Connect Binance WebSocket for realtime price ----------
-  const connectWs = useCallback(() => {
-    if (!symbol || !enabled) return;
+  // ---------- Connect to Chart Backend via Socket.IO for realtime price ----------
+  const connectPrice = useCallback(() => {
+    if (!symbol || !enabled) return () => {};
 
-    // Close existing connection
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
+    const socket = getPriceSocket();
+    const upperSymbol = symbol.toUpperCase();
 
-    const streamName = `${symbol.toLowerCase()}@trade`;
-    const ws = new WebSocket(`${BINANCE_WS_URL}/${streamName}`);
-
-    ws.onopen = () => {
-      setIsPriceConnected(true);
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-        if (data.p) {
-          setCurrentPrice(parseFloat(data.p));
-        }
-      } catch {
-        // ignore parse errors
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handlePriceUpdate = (payload: any) => {
+      const sym = payload.s || payload.symbol;
+      const price = payload.p || payload.price;
+      if (sym && sym.toUpperCase() === upperSymbol && price) {
+        setCurrentPrice(parseFloat(price));
       }
     };
 
-    ws.onclose = () => {
+    const handleConnect = () => {
+      setIsPriceConnected(true);
+      socket.emit("subscribe", { symbol: upperSymbol });
+    };
+
+    const handleDisconnect = () => {
       setIsPriceConnected(false);
     };
 
-    ws.onerror = () => {
-      setIsPriceConnected(false);
-    };
+    socket.on("priceUpdate", handlePriceUpdate);
+    socket.on("connect", handleConnect);
+    socket.on("disconnect", handleDisconnect);
 
-    wsRef.current = ws;
+    // If already connected, subscribe immediately
+    if (socket.connected) {
+      setIsPriceConnected(true);
+      socket.emit("subscribe", { symbol: upperSymbol });
+    }
+
+    return () => {
+      socket.off("priceUpdate", handlePriceUpdate);
+      socket.off("connect", handleConnect);
+      socket.off("disconnect", handleDisconnect);
+      socket.emit("unsubscribe", { symbol: upperSymbol });
+    };
   }, [symbol, enabled]);
 
   // ---------- Compute targets from prediction line + live price ----------
@@ -250,24 +253,17 @@ export function useLivePrediction({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [symbol, interval, enabled, isVipUser]);
 
-  // Connect Binance WS
+  // Connect to Chart Backend price stream via Socket.IO
   useEffect(() => {
     if (!enabled || !symbol) return;
 
-    connectWs();
-
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-        wsRef.current = null;
-      }
-    };
-  }, [symbol, enabled, connectWs]);
+    const cleanup = connectPrice();
+    return cleanup;
+  }, [symbol, enabled, connectPrice]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (wsRef.current) wsRef.current.close();
       if (abortRef.current) abortRef.current.abort();
       if (refreshTimerRef.current) clearInterval(refreshTimerRef.current);
     };

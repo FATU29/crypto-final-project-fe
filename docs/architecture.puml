@@ -1,0 +1,281 @@
+@startuml Crypto Trading Platform - Full Architecture
+
+!define FONTNAME "Segoe UI"
+skinparam backgroundColor #FEFEFE
+skinparam componentStyle rectangle
+skinparam shadowing false
+skinparam ArrowColor #555555
+skinparam ArrowThickness 2
+skinparam packageStyle rectangle
+skinparam defaultFontName FONTNAME
+skinparam defaultFontSize 12
+skinparam noteFontSize 10
+skinparam titleFontSize 20
+
+title **Crypto Trading Platform — Microservices Architecture**\n//CSC13106 Final Project//
+
+' ──────────────────────────────────────────
+'  ACTORS
+' ──────────────────────────────────────────
+actor "Client\n(Browser)" as Client #FFF8DC
+
+' ──────────────────────────────────────────
+'  INGRESS LAYER (K8S)
+' ──────────────────────────────────────────
+package "Ingress Layer — NGINX Ingress Controller" as IngressLayer #E3F2FD {
+    component "fat.org\n→ Frontend" as RouteFE
+    component "api.fat.org\n→ API Gateway" as RouteAPI
+    component "ai.fat.org\n→ AI Service" as RouteAI
+    component "ws.fat.org\n→ WebSocket Gateway\n(Sticky Session)" as RouteWS
+}
+
+note right of RouteWS
+  Cookie-based sticky session
+  (ws-sticky, 10min TTL)
+  Timeout: 3600s read/send
+end note
+
+' ──────────────────────────────────────────
+'  FRONTEND — crypto-frontend namespace
+' ──────────────────────────────────────────
+package "crypto-frontend" #E8F5E9 {
+    component "**Frontend**\nNext.js (React)\nPort 3000 | NodePort 30080" as Frontend <<Next.js>> #C8E6C9
+    note bottom of Frontend
+        Replicas: 2 (HPA: 2–10)
+        Mem: 128Mi–512Mi
+        Transport: SSR + CSR
+        Env Vars:
+        • NEXT_PUBLIC_API_URL → api.fat.org
+        • NEXT_PUBLIC_WS_URL  → ws.fat.org
+        • NEXT_PUBLIC_AI_URL  → ai.fat.org
+        • AI_SERVICE_URL (SSR) → ai-service internal
+    end note
+}
+
+' ──────────────────────────────────────────
+'  API GATEWAY — crypto-gateway namespace
+' ──────────────────────────────────────────
+package "crypto-gateway" #FFEBEE {
+    component "**API Gateway**\nSpring Cloud Gateway (Java)\nPort 9000" as Gateway <<Spring Boot>> #FFCDD2
+    note bottom of Gateway
+        Replicas: 2 (HPA: 1–10)
+        Stateless, Round-robin LB
+        Routes:
+        • /api/v1/auth/** → Auth Service
+        • /api/v1/ai/**   → AI Service
+        • /api/v1/news/** → Crawl Service
+        • /api/v1/causal/** → AI Service
+        • /api/v1/analytics/** → AI Service
+        Filters:
+        • JWT validation (calls Auth)
+        • VIP Authorization
+        • CORS handling
+    end note
+}
+
+' ──────────────────────────────────────────
+'  AUTH SERVICE — crypto-auth namespace
+' ──────────────────────────────────────────
+package "crypto-auth" #FFF8E1 {
+    component "**Auth Service**\nSpring Boot (Java)\nPort 8081" as AuthService <<Spring Boot>> #FFECB3
+    note bottom of AuthService
+        Replicas: 1 (HPA: 1–5)
+        JWT Authentication
+        Google OAuth 2.0
+        Storage: MongoDB (auth_db)
+    end note
+}
+
+' ──────────────────────────────────────────
+'  AI SERVICE — crypto-ai namespace
+' ──────────────────────────────────────────
+package "crypto-ai" #F3E5F5 {
+    component "**AI Service**\nFastAPI (Python)\nPort 8000" as AIService <<FastAPI>> #E1BEE7
+    note bottom of AIService
+        Replicas: 1 (HPA: 1–5)
+        OpenAI GPT-4o-mini
+        Features:
+        • AI Chat (VIP)
+        • Price Prediction (VIP)
+        • Prediction Line for Charts
+        • Sentiment Analysis
+        • Causal Analysis
+        • Price Impact Analysis
+        Storage: PostgreSQL (ai_service)
+    end note
+}
+
+' ──────────────────────────────────────────
+'  CRAWL SERVICE — crypto-crawl namespace
+' ──────────────────────────────────────────
+package "crypto-crawl" #FCE4EC {
+    component "**Crawl Service**\nGo (Golang)\nPort 9000" as CrawlService <<Go>> #F8BBD0
+    component "CronJob\n(Daily at midnight)" as CronJob <<K8s CronJob>> #F48FB1
+    note bottom of CrawlService
+        Replicas: 1 (HPA: 1–3)
+        5 crawler workers
+        60 req/min rate limit
+        Storage: PostgreSQL (crypto_news)
+        Cache: Redis
+    end note
+}
+
+' ──────────────────────────────────────────
+'  WEBSOCKET GATEWAY — crypto-websocket namespace
+' ──────────────────────────────────────────
+package "crypto-websocket" #E0F7FA {
+    component "**WebSocket Gateway**\n(Binance Chart Backend)\nNestJS + Socket.IO (Node.js)\nPort 3000" as WSGateway <<NestJS>> #B2EBF2
+    note bottom of WSGateway
+        Replicas: 2 (HPA: 2–15)
+        1000+ concurrent connections
+        20 Binance trading pairs
+        Redis Pub/Sub for multi-pod sync
+        Features:
+        • Real-time price stream (priceUpdate)
+        • Real-time candlestick (klineUpdate)
+        • REST: /binance/history (kline history)
+        Sticky Session:
+        • Ingress: cookie "ws-sticky" (10min)
+        • Service: ClientIP affinity (backup)
+        • Headless svc for pod discovery
+    end note
+}
+
+' ──────────────────────────────────────────
+'  DATA LAYER — crypto-data namespace
+' ──────────────────────────────────────────
+package "crypto-data" #F5F5F5 {
+    database "**PostgreSQL 15**\nPort 5432" as Postgres <<StatefulSet>> #BBDEFB {
+        storage "crypto_news" as NewsDB
+        storage "ai_service" as AIDB
+    }
+    note right of Postgres
+        PV: 5Gi HostPath
+        /mnt/k8s-data/postgres
+    end note
+
+    database "**MongoDB 7**\nPort 27017" as MongoDB <<StatefulSet>> #FFE0B2 {
+        storage "auth_db" as AuthDB
+    }
+    note right of MongoDB
+        PV: 5Gi HostPath
+        /mnt/k8s-data/mongodb
+    end note
+
+    database "**Redis 7**\nPort 6379" as Redis <<StatefulSet>> #EF9A9A {
+        storage "Cache + Pub/Sub"
+    }
+    note right of Redis
+        PV: 5Gi HostPath
+        512MB maxmemory (LRU)
+        10000 max clients
+        Socket.IO adapter
+    end note
+}
+
+' ──────────────────────────────────────────
+'  EXTERNAL SERVICES
+' ──────────────────────────────────────────
+cloud "External APIs" as ExternalAPIs #FFFDE7 {
+    component "Binance API\nWSS: stream.binance.com:9443\nREST: api.binance.com" as BinanceWS
+    component "OpenAI API\n(GPT-4o-mini)" as OpenAI
+    component "Google OAuth 2.0" as GoogleOAuth
+    component "Crypto News Sources\n(Web Scraping)" as NewsSources
+}
+
+' ──────────────────────────────────────────
+'  CLIENT → INGRESS
+' ──────────────────────────────────────────
+Client -down-> RouteFE : "HTTPS\nfat.org"
+Client -down-> RouteAPI : "REST\napi.fat.org"
+Client -down-> RouteAI : "REST\nai.fat.org"
+Client -down-> RouteWS : "Socket.IO\nws.fat.org"
+
+' ──────────────────────────────────────────
+'  INGRESS → SERVICES
+' ──────────────────────────────────────────
+RouteFE -down-> Frontend
+RouteAPI -down-> Gateway
+RouteAI -down-> AIService
+RouteWS -down-> WSGateway
+
+' ──────────────────────────────────────────
+'  FRONTEND → BACKENDS (client-side via Ingress)
+'  FE calls Chart Service (WS Gateway) → Chart Service proxies to Binance
+' ──────────────────────────────────────────
+Frontend -down-> Gateway : "REST (Axios)\nJWT auto-attach\n/api/v1/**"
+Frontend -down-> WSGateway : "Socket.IO (priceUpdate, klineUpdate)\n+ REST /binance/history\n**All Binance data via Chart Service**"
+Frontend -down-> AIService : "REST (client-side)\nai.fat.org/api/v1/**"
+
+' ──────────────────────────────────────────
+'  FRONTEND → AI (server-side SSR)
+' ──────────────────────────────────────────
+Frontend ..> AIService : "SSR (internal)\nai-service.crypto-ai.svc"
+
+' ──────────────────────────────────────────
+'  GATEWAY → DOWNSTREAM SERVICES
+' ──────────────────────────────────────────
+Gateway -down-> AuthService : "/api/v1/auth/**\nJWT validation"
+Gateway -down-> AIService : "/api/v1/ai/**\n/api/v1/causal/**\n/api/v1/analytics/**"
+Gateway -down-> CrawlService : "/api/v1/news/**"
+
+' ──────────────────────────────────────────
+'  SERVICE-TO-SERVICE
+' ──────────────────────────────────────────
+CrawlService -right-> AIService : "AI analysis\nHTTP REST"
+WSGateway -down-> AIService : "AI analysis\nHTTP REST"
+AIService -left-> CrawlService : "Fetch news data\nHTTP REST"
+AIService -down-> WSGateway : "Chart data\nHTTP REST"
+
+' ──────────────────────────────────────────
+'  SERVICES → DATA STORES
+' ──────────────────────────────────────────
+AuthService -down-> MongoDB : "auth_db\nUser accounts, JWT tokens"
+CrawlService -down-> Postgres : "crypto_news\nNews articles"
+AIService -down-> Postgres : "ai_service\nAI predictions & analysis"
+CrawlService -down-> Redis : "Cache\nNews TTL 3600s"
+WSGateway -down-> Redis : "Pub/Sub\nSocket.IO adapter\nWS state sync"
+
+' ──────────────────────────────────────────
+'  SERVICES → EXTERNAL
+' ──────────────────────────────────────────
+WSGateway -right-> BinanceWS : "WSS + REST proxy\n20 trading pairs\n@miniTicker, @kline_*\n/binance/history → /api/v3/klines"
+AIService -right-> OpenAI : "GPT-4o-mini\nChat, Prediction,\nSentiment, Causal"
+AuthService -right-> GoogleOAuth : "OAuth 2.0\nLogin/Register"
+CrawlService -right-> NewsSources : "HTTP Scraping\n5 workers, 60/min"
+
+' ──────────────────────────────────────────
+'  CRONJOB
+' ──────────────────────────────────────────
+CronJob ..> CrawlService : "Trigger\ndaily at midnight"
+
+' ──────────────────────────────────────────
+'  LEGEND
+' ──────────────────────────────────────────
+legend bottom left
+  |= Color |= Namespace |= Service |= Tech |
+  | <#C8E6C9> | crypto-frontend | Frontend | Next.js (React) |
+  | <#FFCDD2> | crypto-gateway | API Gateway | Spring Cloud Gateway (Java) |
+  | <#FFECB3> | crypto-auth | Auth Service | Spring Boot (Java) |
+  | <#E1BEE7> | crypto-ai | AI Service | FastAPI (Python) |
+  | <#F8BBD0> | crypto-crawl | Crawl Service | Go (Golang) |
+  | <#B2EBF2> | crypto-websocket | WebSocket Gateway (Binance Chart Backend) | NestJS + Socket.IO (Node.js) |
+  | <#BBDEFB> | crypto-data | PostgreSQL | PostgreSQL 15 |
+  | <#FFE0B2> | crypto-data | MongoDB | MongoDB 7 |
+  | <#EF9A9A> | crypto-data | Redis | Redis 7 |
+
+  **Communication Protocols:**
+  ── Solid line: Synchronous HTTP/REST or WebSocket
+  ‥‥ Dotted line: Async / Scheduled / Server-side internal
+
+  **Key Architecture Decisions:**
+  • Frontend NEVER calls Binance directly — ALL data goes through Chart Service
+  • Chart Service connects to Binance WSS, proxies kline history REST, broadcasts via Socket.IO
+  • Sticky session (cookie) on Ingress ensures Socket.IO reconnects to same pod
+  • Gateway routes & validates JWT via Auth Service, enforces VIP access
+  • WebSocket Gateway syncs multi-replica state via Redis Pub/Sub
+  • AI Service is accessed both via Gateway (VIP-gated) and directly via ai.fat.org ingress
+  • CronJob triggers daily crawl for news articles
+endlegend
+
+@enduml

@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { type Timeframe } from "./exchanges";
+
+export type Timeframe = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
 
 type PairState = {
   pair: string;
